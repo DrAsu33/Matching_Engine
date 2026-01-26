@@ -129,7 +129,7 @@ void MatchingEngine::cancel_order(OrderId id)
 
 extern "C"
 {
-    MatchingEngine* matching_engin_new()
+    MatchingEngine* matching_engine_new()
     {
         return new MatchingEngine();
     }

@@ -41,7 +41,7 @@ pub fn load_orders_stream<R: BufRead>(reader: R) -> std::io::Result<Vec<Order>>
             "A" => Side::Ask,
             _ =>
             {
-                eprintln!("Error[Line {}] : Invalid Side (must be B or S).", index + 1);
+                eprintln!("Error[Line {}] : Invalid Side (must be B or A).", index + 1);
                 continue;
             }
         };

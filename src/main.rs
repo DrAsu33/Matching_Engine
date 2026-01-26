@@ -11,7 +11,7 @@ fn main() -> std::io::Result<()>
     
     // launch the engine
     let mut engine = EngineWrapper::new();
-    for (index, order) in orders.iter().enumerate()
+    for order in &orders
     {
         engine.place_order(order);
     }

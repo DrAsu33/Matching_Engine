@@ -23,7 +23,7 @@ impl EngineWrapper
         }
     }
 
-    pub fn place_order(&self, order : &Order)
+    pub fn place_order(&mut self, order : &Order)
     {
         let side_raw : u8 = match order.side
         {
@@ -36,7 +36,7 @@ impl EngineWrapper
         }
     }
 
-    pub fn cancel_order(&self, id : u64)
+    pub fn cancel_order(&mut self, id : u64)
     {
         unsafe 
         {

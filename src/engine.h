@@ -4,7 +4,6 @@
 #include <map>
 #include <algorithm>
 #include <unordered_map>
-#include <variant>
 
 // the core data structure of the engine
 class MatchingEngine
