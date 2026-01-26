@@ -9,3 +9,9 @@ struct Order
     uint64_t price;
     uint64_t amount;
 };
+
+enum class Side : uint8_t
+{
+    BID = 0, 
+    ASK = 1
+};

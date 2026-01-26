@@ -1,1 +1,104 @@
 #include "engine.h"
+
+// returns the remaining amount
+MatchingEngine::Quantity MatchingEngine::match_bid(Price price, Quantity amount)
+{
+    // if matchable
+    while(amount > 0 && !asks.empty() && price >= asks.begin()->first)
+    {
+        auto& best_price_list = asks.begin()->second;
+        auto best_ask = best_price_list.begin();
+        Order& best_order = *best_ask;
+
+        Quantity trade_amount = std::min(amount, best_order.amount);
+        // form a log. omitted here
+        amount -= trade_amount;
+        best_order.amount -= trade_amount;
+
+        // if the best order was completed, it has to be deleted
+        if(best_order.amount == 0)
+        {
+            OrderId oid = best_order.id;
+            best_price_list.erase(best_ask);
+            hashmap_id.erase(oid);
+            if(best_price_list.empty())
+                asks.erase(asks.begin());
+        }
+    }
+    return amount; 
+}
+
+// add the bid order to the orderbook
+inline void MatchingEngine::add_bid(OrderId id, Price price, Quantity amount)
+{
+    auto& level = bids[price];
+    level.emplace_back(Order{id, price, amount});
+    auto it = std::prev(level.end());
+    hashmap_id[id] = OrderLocation{it, Side::BID, price};
+}
+
+// returns the remaining amount
+MatchingEngine::Quantity MatchingEngine::match_ask(Price price, Quantity amount)
+{
+    // if matchable
+    while (amount > 0 && !bids.empty() && price <= bids.begin()->first)
+    {
+        auto& best_price_list = bids.begin()->second;
+        auto best_bid = best_price_list.begin();
+        Order& best_order = *best_bid;
+
+        Quantity trade_amount = std::min(amount, best_order.amount);
+        // form a log. omitted here
+        amount -= trade_amount;
+        best_order.amount -= trade_amount;
+
+        // if the best order was completed, it has to be deleted
+        if (best_order.amount == 0)
+        {
+            OrderId oid = best_order.id;
+            best_price_list.erase(best_bid);
+            hashmap_id.erase(oid);
+            if (best_price_list.empty())
+                bids.erase(bids.begin());
+        }
+    }
+    return amount;
+}
+
+// add the ask order to the orderbook
+inline void MatchingEngine::add_ask(OrderId id, Price price, Quantity amount)
+{
+    auto& level = asks[price];
+    level.emplace_back(Order{id, price, amount});
+    auto it = std::prev(level.end());
+    hashmap_id[id] = OrderLocation{it, Side::ASK, price};
+}
+
+
+
+void MatchingEngine::place_limit_order(Side side, OrderId id, Price price, Quantity amount)
+{
+    Quantity remaining;
+    if(side == Side::ASK)
+    {
+        remaining = match_ask(price, amount);
+        if(remaining > 0)
+            add_ask(id, price, remaining);
+    }
+    else
+    {
+        remaining = match_bid(price, amount);
+        if(remaining > 0)
+            add_bid(id, price, remaining);
+    }
+}
+
+void MatchingEngine::cancel_order(OrderId id)
+{
+
+}
+
+extern "C"
+{
+    
+}

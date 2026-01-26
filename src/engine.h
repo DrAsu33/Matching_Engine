@@ -2,6 +2,7 @@
 #include "order.h"
 #include <list>
 #include <map>
+#include <algorithm>
 #include <unordered_map>
 #include <variant>
 
@@ -21,7 +22,8 @@ public:
     struct OrderLocation
     {
         OrderList::iterator order_iterator;
-        std::variant<AsksMap::iterator, BidsMap::iterator> level_iterator;
+        Side side;
+        Price price;
     };
 
 private:
@@ -30,8 +32,15 @@ private:
     // find any order according to a specific order_id
     std::unordered_map<OrderId, OrderLocation> hashmap_id;
 
+    Quantity match_bid(Price price, Quantity amount);
+    Quantity match_ask(Price price, Quantity amount);
+    inline void add_bid(OrderId id, Price price, Quantity amount);
+    inline void add_ask(OrderId id, Price price, Quantity amount);
+
+
 public:
-    MatchingEngine();
-    void place_limit_order(uint8_t side, OrderId id, Price price, Quantity amount);
+    // Pre-allocating might help reduce runtime latency. Optimaizations needed later
+    MatchingEngine() = default;
+    void place_limit_order(Side side, OrderId id, Price price, Quantity amount);
     void cancel_order(OrderId id);
 };
