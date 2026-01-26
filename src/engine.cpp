@@ -1,4 +1,5 @@
 #include "engine.h"
+#include <iostream>
 
 // returns the remaining amount
 MatchingEngine::Quantity MatchingEngine::match_bid(Price price, Quantity amount)
@@ -146,8 +147,12 @@ extern "C"
             side = Side::BID;
         else if(side_raw == 1)
             side = Side::ASK;
-        else
+        else // wrong parameter
+        {
+            std::cerr << "side conversion failed!" << std::endl;
             return; // wrong parameter
+        }
+            
         
         self->place_limit_order(side, id, price, amount);
     }
