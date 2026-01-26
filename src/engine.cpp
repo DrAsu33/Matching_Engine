@@ -74,8 +74,7 @@ inline void MatchingEngine::add_ask(OrderId id, Price price, Quantity amount)
     hashmap_id[id] = OrderLocation{it, Side::ASK, price};
 }
 
-
-
+// the main function placing an order
 void MatchingEngine::place_limit_order(Side side, OrderId id, Price price, Quantity amount)
 {
     Quantity remaining;
@@ -92,13 +91,70 @@ void MatchingEngine::place_limit_order(Side side, OrderId id, Price price, Quant
             add_bid(id, price, remaining);
     }
 }
-
+// cancel the specific order according to its id
 void MatchingEngine::cancel_order(OrderId id)
 {
+    auto it = hashmap_id.find(id);
+    if(it == hashmap_id.end())
+        return;
 
+    OrderLocation location = it->second;
+    if(location.side == Side::BID)
+    {
+        auto level_it = bids.find(location.price);
+        // On most occasions we don't need the following "if", can be modified to "assert" later
+        if(level_it != bids.end())
+        {
+            auto& list = level_it->second;
+            list.erase(location.order_iterator);
+            if(list.empty())
+                bids.erase(level_it);
+        }
+    }
+    else // Side::ASK
+    {
+        auto level_it = asks.find(location.price);
+        // same as above
+        if (level_it != asks.end())
+        {
+            auto& list = level_it->second;
+            list.erase(location.order_iterator);
+            if (list.empty())
+                asks.erase(level_it);
+        }
+    }
+
+    hashmap_id.erase(it);
 }
 
 extern "C"
 {
-    
+    MatchingEngine* matching_engin_new()
+    {
+        return new MatchingEngine();
+    }
+
+    void matching_engine_free(MatchingEngine* self)
+    {
+        delete self;
+    }
+
+    void matching_engine_place_order(MatchingEngine* self, uint8_t side_raw, uint64_t id, uint64_t price, uint64_t amount)
+    {
+        Side side;
+        if(side_raw == 0)
+            side = Side::BID;
+        else if(side_raw == 1)
+            side = Side::ASK;
+        else
+            return; // wrong parameter
+        
+        self->place_limit_order(side, id, price, amount);
+    }
+
+    void matching_engine_cancel_order(MatchingEngine* self, uint64_t id)
+    {
+        if(self != nullptr)
+            self->cancel_order(id);
+    }
 }
