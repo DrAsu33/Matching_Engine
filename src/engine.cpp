@@ -1,8 +1,15 @@
 #include "engine.h"
 #include <iostream>
 
+
+// get the callback function's ptr
+inline void MatchingEngine::register_callback(CallBackPtr fn_ptr)
+{
+    callback_fn_ptr = fn_ptr;
+}
+
 // returns the remaining amount
-MatchingEngine::Quantity MatchingEngine::match_bid(Price price, Quantity amount)
+Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price price, Quantity amount)
 {
     // if matchable
     while(amount > 0 && !asks.empty() && price >= asks.begin()->first)
@@ -12,7 +19,14 @@ MatchingEngine::Quantity MatchingEngine::match_bid(Price price, Quantity amount)
         Order& best_order = *best_ask;
 
         Quantity trade_amount = std::min(amount, best_order.amount);
-        // form a log. omitted here
+
+        // form a log and call the callback function(if registered)
+        if(callback_fn_ptr)
+        {
+            TradeLog log{best_order.id, best_order.user_id, taker_oid, taker_uid, best_order.price, trade_amount, Side::BID};
+            callback_fn_ptr(log);
+        }
+
         amount -= trade_amount;
         best_order.amount -= trade_amount;
 
@@ -30,16 +44,16 @@ MatchingEngine::Quantity MatchingEngine::match_bid(Price price, Quantity amount)
 }
 
 // add the bid order to the orderbook
-inline void MatchingEngine::add_bid(OrderId id, Price price, Quantity amount)
+inline void MatchingEngine::add_bid(OrderId oid, UserId uid, Price price, Quantity amount)
 {
     auto& level = bids[price];
-    level.emplace_back(Order{id, price, amount});
+    level.emplace_back(Order{oid, uid, price, amount});
     auto it = std::prev(level.end());
-    hashmap_id[id] = OrderLocation{it, Side::BID, price};
+    hashmap_id[oid] = OrderLocation{it, Side::BID, price};
 }
 
 // returns the remaining amount
-MatchingEngine::Quantity MatchingEngine::match_ask(Price price, Quantity amount)
+Quantity MatchingEngine::match_ask(OrderId taker_oid, UserId taker_uid, Price price, Quantity amount)
 {
     // if matchable
     while (amount > 0 && !bids.empty() && price <= bids.begin()->first)
@@ -49,7 +63,14 @@ MatchingEngine::Quantity MatchingEngine::match_ask(Price price, Quantity amount)
         Order& best_order = *best_bid;
 
         Quantity trade_amount = std::min(amount, best_order.amount);
-        // form a log. omitted here
+
+        // form a log and call the callback function(if registered)
+        if(callback_fn_ptr)
+        {
+            TradeLog log{best_order.id, best_order.user_id, taker_oid, taker_uid, best_order.price, trade_amount, Side::ASK};
+            callback_fn_ptr(log);
+        }
+
         amount -= trade_amount;
         best_order.amount -= trade_amount;
 
@@ -67,31 +88,36 @@ MatchingEngine::Quantity MatchingEngine::match_ask(Price price, Quantity amount)
 }
 
 // add the ask order to the orderbook
-inline void MatchingEngine::add_ask(OrderId id, Price price, Quantity amount)
+inline void MatchingEngine::add_ask(OrderId oid, UserId uid, Price price, Quantity amount)
 {
     auto& level = asks[price];
-    level.emplace_back(Order{id, price, amount});
+    level.emplace_back(Order{oid, uid, price, amount});
     auto it = std::prev(level.end());
-    hashmap_id[id] = OrderLocation{it, Side::ASK, price};
+    hashmap_id[oid] = OrderLocation{it, Side::ASK, price};
 }
 
 // the main function placing an order
-void MatchingEngine::place_limit_order(Side side, OrderId id, Price price, Quantity amount)
+void MatchingEngine::place_limit_order(Side side, OrderId oid, UserId uid, Price price, Quantity amount)
 {
     Quantity remaining;
     if(side == Side::ASK)
     {
-        remaining = match_ask(price, amount);
+        remaining = match_ask(oid, uid, price, amount);
         if(remaining > 0)
-            add_ask(id, price, remaining);
+        { 
+            add_ask(oid, uid, price, remaining);
+        }
     }
     else
     {
-        remaining = match_bid(price, amount);
+        remaining = match_bid(oid, uid, price, amount);
         if(remaining > 0)
-            add_bid(id, price, remaining);
+        {
+            add_bid(oid, uid, price, remaining);
+        }
     }
 }
+
 // cancel the specific order according to its id
 void MatchingEngine::cancel_order(OrderId id)
 {
@@ -140,8 +166,14 @@ extern "C"
         delete self;
     }
 
-    void matching_engine_place_order(MatchingEngine* self, uint8_t side_raw, uint64_t id, uint64_t price, uint64_t amount)
+    void matching_engine_place_order(MatchingEngine* self, uint8_t side_raw, uint64_t oid, uint64_t uid, uint64_t price, uint64_t amount)
     {
+        if (!self)
+        {
+            std::cerr << "MatchingEngine pointer is null\n";
+            return;
+        }
+
         Side side;
         if(side_raw == 0)
             side = Side::BID;
@@ -152,14 +184,18 @@ extern "C"
             std::cerr << "side conversion failed!" << std::endl;
             return; // wrong parameter
         }
-            
-        
-        self->place_limit_order(side, id, price, amount);
+        self->place_limit_order(side, oid, uid, price, amount);
     }
 
     void matching_engine_cancel_order(MatchingEngine* self, uint64_t id)
     {
         if(self != nullptr)
             self->cancel_order(id);
+    }
+
+    void matching_engine_register_fn_ptr(MatchingEngine* self, CallBackPtr fn_ptr)
+    {
+        if(self != nullptr)
+            self->register_callback(fn_ptr);
     }
 }
