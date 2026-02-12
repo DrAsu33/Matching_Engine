@@ -69,10 +69,9 @@ fn main() -> std::io::Result<()>
 
             // 4. 写入缓冲区（这比 println 快 1000 倍）
             writer.write_all(log_line.as_bytes()).unwrap();
-        
-            // 循环结束前刷入硬盘
-            writer.flush().unwrap();
         }
+        // 循环结束后刷入硬盘
+        writer.flush().unwrap();
         println!("[LogThread] 全部处理完毕。总成交量: {}", total_volume);
     });
     // 3. THE LOGGER THREAD ENDS!
