@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <vector>
 
 using Price = uint64_t;
 using OrderId = uint64_t;
@@ -15,12 +16,16 @@ enum class Side : uint8_t
 
 // struct order does not contain side since it's in the exact map
 // contains order_id, price and amount
-struct Order
+struct OrderNode
 {
-    OrderId id;
-    UserId user_id;
-    Price price;
-    Quantity amount;
+    OrderId id = 0;
+    UserId user_id = 0;
+    Price price = 0;
+    Quantity amount = 0;
+
+    // indexes for intrusive linked list
+    int32_t prev = -1;
+    int32_t next = -1;
 };
 
 // the information of trades
