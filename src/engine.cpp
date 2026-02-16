@@ -8,6 +8,30 @@ inline void MatchingEngine::register_callback(CallBackPtr fn_ptr)
     callback_fn_ptr = fn_ptr;
 }
 
+MatchingEngine::MatchingEngine()
+{
+    order_pool.resize(POOL_SIZE);
+
+    // Pre-linking "nodes". Note that all "prev"s and the last "next" are set to -1 already
+    for(size_t i = 0; i < POOL_SIZE - 1; i++)
+        order_pool[i].next = (int32_t)(i + 1);
+    pool_head = 0;
+}
+
+int32_t MatchingEngine::alloc_node()
+{
+    int32_t index = pool_head;
+    pool_head = order_pool[index].next;
+    return index;
+}
+
+void MatchingEngine::free_node(int32_t index)
+{
+    order_pool[index].next = pool_head;
+    order_pool[index].prev = -1;
+    pool_head = index;
+}
+
 // returns the remaining amount
 Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price price, Quantity amount)
 {
@@ -15,8 +39,8 @@ Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price pr
     while(amount > 0 && !asks.empty() && price >= asks.begin()->first)
     {
         auto& best_price_list = asks.begin()->second;
-        auto best_ask = best_price_list.begin();
-        Order& best_order = *best_ask;
+        auto best_ask_index = best_price_list.begin(order_pool);
+        OrderNode& best_order = order_pool[best_ask_index];
 
         Quantity trade_amount = std::min(amount, best_order.amount);
 
@@ -34,10 +58,14 @@ Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price pr
         if(best_order.amount == 0)
         {
             OrderId oid = best_order.id;
-            best_price_list.erase(best_ask);
+            best_price_list.erase(order_pool, best_ask_index);
+            free_node(best_ask_index);
             hashmap_id.erase(oid);
-            if(best_price_list.empty())
+            if(best_price_list.empty(order_pool))
+            {
+                free_node(best_price_list.sentinel);
                 asks.erase(asks.begin());
+            }
         }
     }
     return amount; 
@@ -46,10 +74,24 @@ Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price pr
 // add the bid order to the orderbook
 inline void MatchingEngine::add_bid(OrderId oid, UserId uid, Price price, Quantity amount)
 {
-    auto& level = bids[price];
-    level.emplace_back(Order{oid, uid, price, amount});
-    auto it = std::prev(level.end());
-    hashmap_id[oid] = OrderLocation{it, Side::BID, price};
+    // Initialize the new node
+    int32_t new_index = alloc_node();
+    OrderNode& new_node = order_pool[new_index];
+    new_node.id = oid;
+    new_node.user_id = uid;
+    new_node.price = price;
+    new_node.amount = amount;
+
+    auto it = bids.find(price);
+    if(it == bids.end()) // a new price! a new sentinel is needed
+    {
+        int32_t sentinel = alloc_node();
+        auto newlevel = bids.emplace(price, OrderQueue{});
+        newlevel.first->second.init(order_pool, sentinel);
+        it = newlevel.first;
+    }
+    it->second.push_back(order_pool, new_index);
+    hashmap_id[oid] = OrderLocation{new_index, Side::BID, price};
 }
 
 // returns the remaining amount
@@ -59,8 +101,8 @@ Quantity MatchingEngine::match_ask(OrderId taker_oid, UserId taker_uid, Price pr
     while (amount > 0 && !bids.empty() && price <= bids.begin()->first)
     {
         auto& best_price_list = bids.begin()->second;
-        auto best_bid = best_price_list.begin();
-        Order& best_order = *best_bid;
+        auto best_bid_index = best_price_list.begin(order_pool);
+        OrderNode& best_order = order_pool[best_bid_index];
 
         Quantity trade_amount = std::min(amount, best_order.amount);
 
@@ -78,10 +120,14 @@ Quantity MatchingEngine::match_ask(OrderId taker_oid, UserId taker_uid, Price pr
         if (best_order.amount == 0)
         {
             OrderId oid = best_order.id;
-            best_price_list.erase(best_bid);
+            best_price_list.erase(order_pool, best_bid_index);
+            free_node(best_bid_index);
             hashmap_id.erase(oid);
-            if (best_price_list.empty())
+            if (best_price_list.empty(order_pool))
+            {
+                free_node(best_price_list.sentinel);
                 bids.erase(bids.begin());
+            }
         }
     }
     return amount;
@@ -90,10 +136,24 @@ Quantity MatchingEngine::match_ask(OrderId taker_oid, UserId taker_uid, Price pr
 // add the ask order to the orderbook
 inline void MatchingEngine::add_ask(OrderId oid, UserId uid, Price price, Quantity amount)
 {
-    auto& level = asks[price];
-    level.emplace_back(Order{oid, uid, price, amount});
-    auto it = std::prev(level.end());
-    hashmap_id[oid] = OrderLocation{it, Side::ASK, price};
+    // Initialize the new node
+    int32_t new_index = alloc_node();
+    OrderNode& new_node = order_pool[new_index];
+    new_node.id = oid;
+    new_node.user_id = uid;
+    new_node.price = price;
+    new_node.amount = amount;
+
+    auto it = asks.find(price);
+    if(it == asks.end()) // a new price! a new sentinel is needed
+    {
+        int32_t sentinel = alloc_node();
+        auto newlevel = asks.emplace(price, OrderQueue{});
+        newlevel.first->second.init(order_pool, sentinel);
+        it = newlevel.first;
+    }
+    it->second.push_back(order_pool, new_index);
+    hashmap_id[oid] = OrderLocation{new_index, Side::ASK, price};
 }
 
 // the main function placing an order
@@ -133,8 +193,9 @@ void MatchingEngine::cancel_order(OrderId id)
         if(level_it != bids.end())
         {
             auto& list = level_it->second;
-            list.erase(location.order_iterator);
-            if(list.empty())
+            list.erase(order_pool, location.order_index);
+            free_node(location.order_index);
+            if(list.empty(order_pool))
                 bids.erase(level_it);
         }
     }
@@ -145,8 +206,9 @@ void MatchingEngine::cancel_order(OrderId id)
         if (level_it != asks.end())
         {
             auto& list = level_it->second;
-            list.erase(location.order_iterator);
-            if (list.empty())
+            list.erase(order_pool, location.order_index);
+            free_node(location.order_index);
+            if (list.empty(order_pool))
                 asks.erase(level_it);
         }
     }

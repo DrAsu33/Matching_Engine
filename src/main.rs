@@ -41,7 +41,7 @@ fn main() -> std::io::Result<()>
         GLOBAL_SENDER = Some(tx);
     }
 
-
+    /*
     // 3. THE LOGGER THREAD STARTS!
     let logger = thread::spawn(move || {
         println!("[LogThread] 日志线程已启动，等待数据...");
@@ -75,7 +75,7 @@ fn main() -> std::io::Result<()>
         println!("[LogThread] 全部处理完毕。总成交量: {}", total_volume);
     });
     // 3. THE LOGGER THREAD ENDS!
-    
+    */
     // 1. 读取数据 (不计入撮合时间，或者你可以分开看)
     let filename = "test.csv"; // 确保文件名对应
     println!("Loading orders from {}...", filename);
@@ -121,7 +121,7 @@ fn main() -> std::io::Result<()>
     // 【修改点 3】删掉 sleep，改成 join
     // 意思：主线程卡在这里等，直到 log_handle 代表的线程执行结束
     // 如果通道里还有 100万条数据，主线程就会在这里乖乖等它写完
-    logger.join().unwrap();
+    //logger.join().unwrap();
 
     println!("Log thread finished safely. Bye!");
 
