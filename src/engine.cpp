@@ -8,16 +8,22 @@ inline void MatchingEngine::register_callback(CallBackPtr fn_ptr)
     callback_fn_ptr = fn_ptr;
 }
 
+// The constructor. Pre-allocating the memory pool of orders
 MatchingEngine::MatchingEngine()
 {
     order_pool.resize(POOL_SIZE);
-
     // Pre-linking "nodes". Note that all "prev"s and the last "next" are set to -1 already
     for(size_t i = 0; i < POOL_SIZE - 1; i++)
         order_pool[i].next = (int32_t)(i + 1);
     pool_head = 0;
+    // Assign sentinels
+    for(auto& queue : asks.buckets)
+        queue.init(order_pool, alloc_node());
+    for(auto& queue : bids.buckets)
+        queue.init(order_pool, alloc_node());
 }
 
+// Allocating an unused node and returns the index. Note that the data is not synced
 int32_t MatchingEngine::alloc_node()
 {
     int32_t index = pool_head;
@@ -25,6 +31,7 @@ int32_t MatchingEngine::alloc_node()
     return index;
 }
 
+// Free the unused node. The latest freed node will be the first to be allocated (cache-friendly)
 void MatchingEngine::free_node(int32_t index)
 {
     order_pool[index].next = pool_head;
@@ -36,35 +43,40 @@ void MatchingEngine::free_node(int32_t index)
 Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price price, Quantity amount)
 {
     // if matchable
-    while(amount > 0 && !asks.empty() && price >= asks.begin()->first)
+    while(amount > 0)
     {
-        auto& best_price_list = asks.begin()->second;
-        auto best_ask_index = best_price_list.begin(order_pool);
-        OrderNode& best_order = order_pool[best_ask_index];
+        // Calling the func get_best_queue assures the best_price is updated
+        auto best_price_list_ptr = asks.get_best_queue(order_pool);
+        // If the map is empty or the price is unsatisfying
+        if(best_price_list_ptr == nullptr || asks.best_price > price) break;
 
-        Quantity trade_amount = std::min(amount, best_order.amount);
-
-        // form a log and call the callback function(if registered)
-        if(callback_fn_ptr)
+        // The inner loop that deals with the queue at the bestprice
+        while(amount > 0)
         {
-            TradeLog log{best_order.id, best_order.user_id, taker_oid, taker_uid, best_order.price, trade_amount, Side::BID};
-            callback_fn_ptr(log);
-        }
+            // The queue is eaten up
+            if(best_price_list_ptr->empty(order_pool)) break;
 
-        amount -= trade_amount;
-        best_order.amount -= trade_amount;
+            auto best_ask_index = best_price_list_ptr->begin(order_pool);
+            OrderNode& best_order = order_pool[best_ask_index];
 
-        // if the best order was completed, it has to be deleted
-        if(best_order.amount == 0)
-        {
-            OrderId oid = best_order.id;
-            best_price_list.erase(order_pool, best_ask_index);
-            free_node(best_ask_index);
-            hashmap_id.erase(oid);
-            if(best_price_list.empty(order_pool))
+            Quantity trade_amount = std::min(amount, best_order.amount);
+
+            // form a log and call the callback function(if registered)
+            if(callback_fn_ptr)
             {
-                free_node(best_price_list.sentinel);
-                asks.erase(asks.begin());
+                TradeLog log{best_order.id, best_order.user_id, taker_oid, taker_uid, best_order.price, trade_amount, Side::BID};
+                callback_fn_ptr(log);
+            }
+
+            amount -= trade_amount;
+            best_order.amount -= trade_amount;
+
+            // if the best order was completed, it has to be deleted
+            if(best_order.amount == 0)
+            {
+                best_price_list_ptr->erase(order_pool, best_ask_index);
+                hashmap_id.erase(best_order.id);
+                free_node(best_ask_index);
             }
         }
     }
@@ -82,15 +94,7 @@ inline void MatchingEngine::add_bid(OrderId oid, UserId uid, Price price, Quanti
     new_node.price = price;
     new_node.amount = amount;
 
-    auto it = bids.find(price);
-    if(it == bids.end()) // a new price! a new sentinel is needed
-    {
-        int32_t sentinel = alloc_node();
-        auto newlevel = bids.emplace(price, OrderQueue{});
-        newlevel.first->second.init(order_pool, sentinel);
-        it = newlevel.first;
-    }
-    it->second.push_back(order_pool, new_index);
+    bids.add(order_pool, price, new_index);
     hashmap_id[oid] = OrderLocation{new_index, Side::BID, price};
 }
 
@@ -98,39 +102,46 @@ inline void MatchingEngine::add_bid(OrderId oid, UserId uid, Price price, Quanti
 Quantity MatchingEngine::match_ask(OrderId taker_oid, UserId taker_uid, Price price, Quantity amount)
 {
     // if matchable
-    while (amount > 0 && !bids.empty() && price <= bids.begin()->first)
+    while(amount > 0)
     {
-        auto& best_price_list = bids.begin()->second;
-        auto best_bid_index = best_price_list.begin(order_pool);
-        OrderNode& best_order = order_pool[best_bid_index];
+        // Calling the func get_best_queue assures the best_price is updated
+        auto best_price_list_ptr = bids.get_best_queue(order_pool);
+        // If the map is empty or the price is unsatisfying
+        // Note: For selling, we break if the Best Bid is LOWER than our Ask price
+        if(best_price_list_ptr == nullptr || bids.best_price < price) break;
 
-        Quantity trade_amount = std::min(amount, best_order.amount);
-
-        // form a log and call the callback function(if registered)
-        if(callback_fn_ptr)
+        // The inner loop that deals with the queue at the bestprice
+        while(amount > 0)
         {
-            TradeLog log{best_order.id, best_order.user_id, taker_oid, taker_uid, best_order.price, trade_amount, Side::ASK};
-            callback_fn_ptr(log);
-        }
+            // The queue is eaten up
+            if(best_price_list_ptr->empty(order_pool)) break;
 
-        amount -= trade_amount;
-        best_order.amount -= trade_amount;
+            auto best_bid_index = best_price_list_ptr->begin(order_pool);
+            OrderNode& best_order = order_pool[best_bid_index];
 
-        // if the best order was completed, it has to be deleted
-        if (best_order.amount == 0)
-        {
-            OrderId oid = best_order.id;
-            best_price_list.erase(order_pool, best_bid_index);
-            free_node(best_bid_index);
-            hashmap_id.erase(oid);
-            if (best_price_list.empty(order_pool))
+            Quantity trade_amount = std::min(amount, best_order.amount);
+
+            // form a log and call the callback function(if registered)
+            if(callback_fn_ptr)
             {
-                free_node(best_price_list.sentinel);
-                bids.erase(bids.begin());
+                // Taker side is ASK here
+                TradeLog log{best_order.id, best_order.user_id, taker_oid, taker_uid, best_order.price, trade_amount, Side::ASK};
+                callback_fn_ptr(log);
+            }
+
+            amount -= trade_amount;
+            best_order.amount -= trade_amount;
+
+            // if the best order was completed, it has to be deleted
+            if(best_order.amount == 0)
+            {
+                best_price_list_ptr->erase(order_pool, best_bid_index);
+                hashmap_id.erase(best_order.id);
+                free_node(best_bid_index);
             }
         }
     }
-    return amount;
+    return amount; 
 }
 
 // add the ask order to the orderbook
@@ -144,15 +155,7 @@ inline void MatchingEngine::add_ask(OrderId oid, UserId uid, Price price, Quanti
     new_node.price = price;
     new_node.amount = amount;
 
-    auto it = asks.find(price);
-    if(it == asks.end()) // a new price! a new sentinel is needed
-    {
-        int32_t sentinel = alloc_node();
-        auto newlevel = asks.emplace(price, OrderQueue{});
-        newlevel.first->second.init(order_pool, sentinel);
-        it = newlevel.first;
-    }
-    it->second.push_back(order_pool, new_index);
+    asks.add(order_pool, price, new_index);
     hashmap_id[oid] = OrderLocation{new_index, Side::ASK, price};
 }
 
@@ -181,6 +184,7 @@ void MatchingEngine::place_limit_order(Side side, OrderId oid, UserId uid, Price
 // cancel the specific order according to its id
 void MatchingEngine::cancel_order(OrderId id)
 {
+    // If the ID parameter is wrong
     auto it = hashmap_id.find(id);
     if(it == hashmap_id.end())
         return;
@@ -188,34 +192,21 @@ void MatchingEngine::cancel_order(OrderId id)
     OrderLocation location = it->second;
     if(location.side == Side::BID)
     {
-        auto level_it = bids.find(location.price);
-        // On most occasions we don't need the following "if", can be modified to "assert" later
-        if(level_it != bids.end())
-        {
-            auto& list = level_it->second;
-            list.erase(order_pool, location.order_index);
-            free_node(location.order_index);
-            if(list.empty(order_pool))
-                bids.erase(level_it);
-        }
+        auto& queue = bids.buckets[location.price];
+        queue.erase(order_pool, location.order_index);
+        free_node(location.order_index);
     }
     else // Side::ASK
     {
-        auto level_it = asks.find(location.price);
-        // same as above
-        if (level_it != asks.end())
-        {
-            auto& list = level_it->second;
-            list.erase(order_pool, location.order_index);
-            free_node(location.order_index);
-            if (list.empty(order_pool))
-                asks.erase(level_it);
-        }
+        auto& queue = asks.buckets[location.price];
+        queue.erase(order_pool, location.order_index);
+        free_node(location.order_index);
     }
 
     hashmap_id.erase(it);
 }
 
+// The functions needed
 extern "C"
 {
     MatchingEngine* matching_engine_new()

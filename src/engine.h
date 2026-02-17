@@ -1,7 +1,8 @@
 #pragma once
 #include "order.h"
 #include "orderqueue.h"
-#include <map>
+#include "orderbook.h"
+
 #include <algorithm>
 #include <unordered_map>
 
@@ -13,12 +14,13 @@ using CallBackPtr = void* (*)(const TradeLog);
 class MatchingEngine
 {
 public:
+    constexpr static int32_t POOL_SIZE = 5000000;
+    constexpr static Price MAX_PRICE = 100000;
     using OrderList = OrderQueue;
     // the orderbook of the asks (ascending order)
-    using AsksMap = std::map<Price, OrderList>;
+    using AsksMap = OrderBook<Side::ASK, MAX_PRICE>;
     // the orderbook of the bids (descending order)
-    using BidsMap = std::map<Price, OrderList, std::greater<Price>>;
-    constexpr static int32_t POOL_SIZE = 10000000;
+    using BidsMap = OrderBook<Side::BID, MAX_PRICE>;
 
     // the location of order
     struct OrderLocation

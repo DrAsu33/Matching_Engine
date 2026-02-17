@@ -83,9 +83,10 @@ fn main() -> std::io::Result<()>
     println!("Loaded {} orders.", orders.len());
     
     // 2. 初始化引擎
+    println!("Engine launching...");
     let mut engine = EngineWrapper::new();
     engine.regiser_fn_ptr(callback);
-    println!("Starting Benchmark...");
+    println!("Engine successfully launched! Starting Benchmark...");
     
     // 3. 开始计时
     let start = Instant::now();
