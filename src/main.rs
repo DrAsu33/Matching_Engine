@@ -85,7 +85,7 @@ fn main() -> std::io::Result<()>
     // 2. 初始化引擎
     println!("Engine launching...");
     let mut engine = EngineWrapper::new();
-    engine.regiser_fn_ptr(callback);
+    //engine.regiser_fn_ptr(callback);
     println!("Engine successfully launched! Starting Benchmark...");
     
     // 3. 开始计时
