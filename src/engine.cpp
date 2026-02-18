@@ -1,4 +1,5 @@
 #include "engine.h"
+#include <cassert>
 #include <iostream>
 
 
@@ -12,6 +13,7 @@ inline void MatchingEngine::register_callback(CallBackPtr fn_ptr)
 MatchingEngine::MatchingEngine()
 {
     order_pool.resize(POOL_SIZE);
+    order_locations.resize(MAX_ORDERS);
     // Pre-linking "nodes". Note that all "prev"s and the last "next" are set to -1 already
     for(size_t i = 0; i < POOL_SIZE - 1; i++)
         order_pool[i].next = (int32_t)(i + 1);
@@ -75,7 +77,8 @@ Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price pr
             if(best_order.amount == 0)
             {
                 best_price_list_ptr->erase(order_pool, best_ask_index);
-                hashmap_id.erase(best_order.id);
+                assert(best_order.id < MAX_ORDERS);
+                order_locations[best_order.id].pool_index = -1;
                 free_node(best_ask_index);
             }
         }
@@ -95,7 +98,8 @@ inline void MatchingEngine::add_bid(OrderId oid, UserId uid, Price price, Quanti
     new_node.amount = amount;
 
     bids.add(order_pool, price, new_index);
-    hashmap_id[oid] = OrderLocation{new_index, Side::BID, price};
+    assert(oid < MAX_ORDERS);
+    order_locations[oid] = OrderLocation{new_index, Side::BID}; // The compiler shall optimize it. No temporary variable will be constructed
 }
 
 // returns the remaining amount
@@ -136,7 +140,8 @@ Quantity MatchingEngine::match_ask(OrderId taker_oid, UserId taker_uid, Price pr
             if(best_order.amount == 0)
             {
                 best_price_list_ptr->erase(order_pool, best_bid_index);
-                hashmap_id.erase(best_order.id);
+                assert(best_order.id < MAX_ORDERS);
+                order_locations[best_order.id].pool_index = -1;
                 free_node(best_bid_index);
             }
         }
@@ -156,7 +161,8 @@ inline void MatchingEngine::add_ask(OrderId oid, UserId uid, Price price, Quanti
     new_node.amount = amount;
 
     asks.add(order_pool, price, new_index);
-    hashmap_id[oid] = OrderLocation{new_index, Side::ASK, price};
+    assert(oid < MAX_ORDERS);
+    order_locations[oid] = OrderLocation{new_index, Side::ASK}; // The compiler shall optimize it. No temporary variable will be constructed
 }
 
 // the main function placing an order
@@ -185,25 +191,20 @@ void MatchingEngine::place_limit_order(Side side, OrderId oid, UserId uid, Price
 void MatchingEngine::cancel_order(OrderId id)
 {
     // If the ID parameter is wrong
-    auto it = hashmap_id.find(id);
-    if(it == hashmap_id.end())
+    if(id >= MAX_ORDERS)
         return;
 
-    OrderLocation location = it->second;
+    OrderLocation& location = order_locations[id];
+    if(location.finished())
+        return;
+    int32_t index = location.pool_index;
+    OrderNode& order = order_pool[index];
     if(location.side == Side::BID)
-    {
-        auto& queue = bids.buckets[location.price];
-        queue.erase(order_pool, location.order_index);
-        free_node(location.order_index);
-    }
+        bids.buckets[order.price].erase(order_pool, index);
     else // Side::ASK
-    {
-        auto& queue = asks.buckets[location.price];
-        queue.erase(order_pool, location.order_index);
-        free_node(location.order_index);
-    }
-
-    hashmap_id.erase(it);
+        asks.buckets[order.price].erase(order_pool, index);
+    free_node(index);
+    location.setfinish();
 }
 
 // The functions needed

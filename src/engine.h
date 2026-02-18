@@ -14,7 +14,8 @@ using CallBackPtr = void* (*)(const TradeLog);
 class MatchingEngine
 {
 public:
-    constexpr static int32_t POOL_SIZE = 5000000;
+    constexpr static int32_t POOL_SIZE = 8000000;
+    constexpr static OrderId MAX_ORDERS = 12000000;
     constexpr static Price MAX_PRICE = 100000;
     using OrderList = OrderQueue;
     // the orderbook of the asks (ascending order)
@@ -25,25 +26,32 @@ public:
     // the location of order
     struct OrderLocation
     {
-        int32_t order_index;
-        Side side;
-        Price price;
+        // The pool_index indicated the order's physical address in the orderpool
+        // initialized as -1 to show that the order was finished or cancelled
+        // (do not exist in the order pool)
+        // side is BID by default which actually means nothing
+        int32_t pool_index = -1;
+        Side side = Side::BID;
+        inline bool finished() const{ return pool_index == -1; }
+        inline void setfinish() { pool_index = -1; }
     };
 
 private:
+    // The 2 orderbooks we need
     AsksMap asks;
     BidsMap bids;
-    // find any order according to a specific order_id
-    std::unordered_map<OrderId, OrderLocation> hashmap_id;
 
     // the ptr of the callback function
     CallBackPtr callback_fn_ptr = nullptr;
 
-    // the order pool (pre-allocated)
+    // the ordernode pool (pre-allocated)
     std::vector<OrderNode> order_pool;
     int32_t pool_head = -1;  // shall be initialized as 0 in constructor func
     int32_t alloc_node();
     void free_node(int32_t index);
+
+    // Find the information of an order according to its OrderID
+    std::vector<OrderLocation> order_locations;
 
     Quantity match_bid(OrderId taker_oid, UserId taker_uid, Price price, Quantity amount);
     Quantity match_ask(OrderId taker_oid, UserId taker_uid, Price price, Quantity amount);

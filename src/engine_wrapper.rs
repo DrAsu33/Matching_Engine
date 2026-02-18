@@ -47,7 +47,7 @@ impl EngineWrapper
             matching_engine_cancel_order(self.ptr, id);
         }
     }
-
+    #[allow(dead_code)]
     pub fn regiser_fn_ptr(&mut self, ptr : CallBackPtr)
     {
         unsafe 

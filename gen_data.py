@@ -2,7 +2,7 @@ import random
 
 # 配置
 FILENAME = "test.csv"
-ORDER_COUNT = 1000000  # 100万单
+ORDER_COUNT = 10  # 100万单
 USERS = range(1000, 2000) # 模拟1000个用户
 
 print(f"Generating {ORDER_COUNT} orders...")
