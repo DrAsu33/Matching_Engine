@@ -5,22 +5,22 @@ struct OrderQueue
 {
     int32_t sentinel = -1; // sentinel node is used to eliminate branch predicition
 
-    void init(std::vector<OrderNode>& pool, int32_t sentinel_index);
-    void push_back(std::vector<OrderNode>& pool, int32_t new_index);
-    void erase(std::vector<OrderNode>& pool, int32_t node_index);
-    inline bool empty(const std::vector<OrderNode>& pool) const;
-    inline int32_t begin(const std::vector<OrderNode>& pool) const;
+    void init(std::vector<OrderCore>& pool, int32_t sentinel_index);
+    void push_back(std::vector<OrderCore>& pool, int32_t new_index);
+    void erase(std::vector<OrderCore>& pool, int32_t node_index);
+    inline bool empty(const std::vector<OrderCore>& pool) const;
+    inline int32_t begin(const std::vector<OrderCore>& pool) const;
     inline int32_t end() const;
 };
 
 // Check whether the queue is empty.
-inline bool OrderQueue::empty(const std::vector<OrderNode>& pool) const 
+inline bool OrderQueue::empty(const std::vector<OrderCore>& pool) const 
 {
         return pool[sentinel].next == sentinel;
 }
 
 // Get the first index of the list
-inline int32_t OrderQueue::begin(const std::vector<OrderNode>& pool) const
+inline int32_t OrderQueue::begin(const std::vector<OrderCore>& pool) const
 {
     return pool[sentinel].next;
 }
@@ -31,7 +31,7 @@ inline int32_t OrderQueue::end() const
 }
 
 // The initialization of th queue. Use alloc_node() as the second parameter
-void OrderQueue::init(std::vector<OrderNode>& pool, int32_t sentinel_index)
+void OrderQueue::init(std::vector<OrderCore>& pool, int32_t sentinel_index)
 {
     sentinel = sentinel_index;
     pool[sentinel].prev = sentinel;
@@ -39,7 +39,7 @@ void OrderQueue::init(std::vector<OrderNode>& pool, int32_t sentinel_index)
 }
 
 // Remember to initialize node[new_index] after this func
-void OrderQueue::push_back(std::vector<OrderNode>& pool, int32_t new_index)
+void OrderQueue::push_back(std::vector<OrderCore>& pool, int32_t new_index)
 {
     int32_t rear = pool[sentinel].prev;
     pool[sentinel].prev = pool[rear].next = new_index;
@@ -48,7 +48,7 @@ void OrderQueue::push_back(std::vector<OrderNode>& pool, int32_t new_index)
 }
 
 // erase the specific order according to its index
-void OrderQueue::erase(std::vector<OrderNode>& pool, int32_t node_index)
+void OrderQueue::erase(std::vector<OrderCore>& pool, int32_t node_index)
 {
     int32_t prevnode = pool[node_index].prev;
     int32_t nextnode = pool[node_index].next;

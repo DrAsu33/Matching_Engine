@@ -31,6 +31,7 @@ public:
         // (do not exist in the order pool)
         // side is BID by default which actually means nothing
         int32_t pool_index = -1;
+        Price price = 0;
         Side side = Side::BID;
         inline bool finished() const{ return pool_index == -1; }
         inline void setfinish() { pool_index = -1; }
@@ -45,8 +46,9 @@ private:
     CallBackPtr callback_fn_ptr = nullptr;
 
     // the ordernode pool (pre-allocated)
-    std::vector<OrderNode> order_pool;
-    int32_t pool_head = -1;  // shall be initialized as 0 in constructor func
+    std::vector<OrderCore> order_core_pool;
+    std::vector<OrderInfo> order_info_pool;
+    int32_t pool_head = -1;  // shall be initialized as 0 in constructor function
     int32_t alloc_node();
     void free_node(int32_t index);
 

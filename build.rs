@@ -1,10 +1,11 @@
 fn main() {
     let mut build = cc::Build::new();
 
-    // 1. 设置源文件
-    // 注意：不要在这里调用 .std("c++17")，我们下面手动设置，防止兼容性问题
+    // 1. 设置源文件与全局宏定义
     build.cpp(true)
-         .file("src/engine.cpp");
+         .file("src/engine.cpp")
+         // 【关键新增】定义 NDEBUG 宏，彻底抹杀 C++ 代码中 assert 的运行时开销
+         .define("NDEBUG", None);
 
     // 2. 获取编译器信息
     let compiler = build.get_compiler();

@@ -14,8 +14,8 @@ struct OrderBook
     OrderBook();
     inline void reset();
     inline bool empty() const;
-    void add(std::vector<OrderNode>& pool, uint64_t price, int32_t node_idx);
-    OrderQueue* get_best_queue(std::vector<OrderNode>& pool);
+    void add(std::vector<OrderCore>& pool, uint64_t price, int32_t node_idx);
+    OrderQueue* get_best_queue(std::vector<OrderCore>& pool);
 };
 
 // The sentinels shall be constructed in the constructor of the MatchingEngine
@@ -48,7 +48,7 @@ inline bool OrderBook<side, max_price>::empty() const
 
 // Add a new ordernode.
 template<Side side, Price max_price>
-void OrderBook<side, max_price>::add(std::vector<OrderNode>& pool, uint64_t price, int32_t node_idx)
+void OrderBook<side, max_price>::add(std::vector<OrderCore>& pool, uint64_t price, int32_t node_idx)
 {
     buckets[price].push_back(pool, node_idx);
     if constexpr (side == Side::BID) 
@@ -65,7 +65,7 @@ void OrderBook<side, max_price>::add(std::vector<OrderNode>& pool, uint64_t pric
 
 // Get the best queue ptr
 template<Side side, Price max_price>
-OrderQueue* OrderBook<side, max_price>::get_best_queue(std::vector<OrderNode>& pool) 
+OrderQueue* OrderBook<side, max_price>::get_best_queue(std::vector<OrderCore>& pool) 
 {
     if (empty()) [[unlikely]] 
         return nullptr;
