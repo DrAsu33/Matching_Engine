@@ -9,6 +9,7 @@ pub enum Side
     Ask = 1,
 }
 
+#[repr(C)]
 #[derive(Debug)]
 pub struct Order
 {

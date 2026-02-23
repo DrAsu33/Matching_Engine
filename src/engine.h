@@ -14,7 +14,7 @@ using CallBackPtr = void* (*)(const TradeLog);
 class MatchingEngine
 {
 public:
-    constexpr static int32_t POOL_SIZE = 8000000;
+    constexpr static int32_t POOL_SIZE = 12000000;
     constexpr static OrderId MAX_ORDERS = 12000000;
     constexpr static Price MAX_PRICE = 100000;
     using OrderList = OrderQueue;

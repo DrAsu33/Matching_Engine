@@ -22,10 +22,7 @@ pub fn run(engine: &mut EngineWrapper, orders: &[Order]) -> BenchResult {
     
     let start = Instant::now();
     
-    // 核心循环
-    for order in orders {
-        engine.place_order(order);
-    }
+    engine.place_orders_batch(orders);
     
     let duration = start.elapsed();
     

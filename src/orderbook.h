@@ -15,7 +15,7 @@ struct OrderBook
     inline void reset();
     inline bool empty() const;
     void add(std::vector<OrderCore>& pool, uint64_t price, int32_t node_idx);
-    OrderQueue* get_best_queue(std::vector<OrderCore>& pool);
+    OrderQueue* get_best_queue();
 };
 
 // The sentinels shall be constructed in the constructor of the MatchingEngine
@@ -65,12 +65,12 @@ void OrderBook<side, max_price>::add(std::vector<OrderCore>& pool, uint64_t pric
 
 // Get the best queue ptr
 template<Side side, Price max_price>
-OrderQueue* OrderBook<side, max_price>::get_best_queue(std::vector<OrderCore>& pool) 
+OrderQueue* OrderBook<side, max_price>::get_best_queue() 
 {
     if (empty()) [[unlikely]] 
         return nullptr;
     // The hot path
-    if (!buckets[best_price].empty(pool)) {
+    if (!buckets[best_price].empty()) {
         return &buckets[best_price];
     }
     // Cold path. linear scanning can find out the next best_price
@@ -80,7 +80,7 @@ OrderQueue* OrderBook<side, max_price>::get_best_queue(std::vector<OrderCore>& p
         {
             best_price--;
             if (best_price == 0) break;
-            if (!buckets[best_price].empty(pool)) return &buckets[best_price];
+            if (!buckets[best_price].empty()) return &buckets[best_price];
         }
     } 
     else 
@@ -89,7 +89,7 @@ OrderQueue* OrderBook<side, max_price>::get_best_queue(std::vector<OrderCore>& p
         {
             best_price++;
             if (best_price == max_price) break;
-            if (!buckets[best_price].empty(pool)) return &buckets[best_price];
+            if (!buckets[best_price].empty()) return &buckets[best_price];
         }
     }
     return nullptr; // the map is empty.

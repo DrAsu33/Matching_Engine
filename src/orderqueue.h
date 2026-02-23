@@ -3,55 +3,44 @@
 
 struct OrderQueue
 {
-    int32_t sentinel = -1; // sentinel node is used to eliminate branch predicition
+    // The indices of the "list"
+    int32_t head = -1;
+    int32_t rear = -1;
 
-    void init(std::vector<OrderCore>& pool, int32_t sentinel_index);
-    void push_back(std::vector<OrderCore>& pool, int32_t new_index);
-    void erase(std::vector<OrderCore>& pool, int32_t node_index);
-    inline bool empty(const std::vector<OrderCore>& pool) const;
-    inline int32_t begin(const std::vector<OrderCore>& pool) const;
-    inline int32_t end() const;
+    inline void push_back(std::vector<OrderCore>& pool, int32_t new_index);
+    inline void pop_front(std::vector<OrderCore>& pool);
+    inline bool empty() const;
+    inline int32_t begin() const;
 };
 
 // Check whether the queue is empty.
-inline bool OrderQueue::empty(const std::vector<OrderCore>& pool) const 
+inline bool OrderQueue::empty() const 
 {
-        return pool[sentinel].next == sentinel;
+    return head == -1;
 }
 
 // Get the first index of the list
-inline int32_t OrderQueue::begin(const std::vector<OrderCore>& pool) const
+inline int32_t OrderQueue::begin() const
 {
-    return pool[sentinel].next;
-}
-
-inline int32_t OrderQueue::end() const
-{
-    return sentinel;
-}
-
-// The initialization of th queue. Use alloc_node() as the second parameter
-void OrderQueue::init(std::vector<OrderCore>& pool, int32_t sentinel_index)
-{
-    sentinel = sentinel_index;
-    pool[sentinel].prev = sentinel;
-    pool[sentinel].next = sentinel;
+    return head;
 }
 
 // Remember to initialize node[new_index] after this func
-void OrderQueue::push_back(std::vector<OrderCore>& pool, int32_t new_index)
+inline void OrderQueue::push_back(std::vector<OrderCore>& pool, int32_t new_index)
 {
-    int32_t rear = pool[sentinel].prev;
-    pool[sentinel].prev = pool[rear].next = new_index;
-    pool[new_index].next = sentinel;
-    pool[new_index].prev = rear;
+    pool[new_index].next = -1;
+    if(rear != -1) [[likely]] // not empty
+        pool[rear].next = new_index;
+    else
+        head = new_index;
+    rear = new_index;
 }
 
-// erase the specific order according to its index
-void OrderQueue::erase(std::vector<OrderCore>& pool, int32_t node_index)
+// Pop the first node. The node should be freed manually
+// First make sure not empty!!
+inline void OrderQueue::pop_front(std::vector<OrderCore>& pool)
 {
-    int32_t prevnode = pool[node_index].prev;
-    int32_t nextnode = pool[node_index].next;
-    pool[prevnode].next = nextnode;
-    pool[nextnode].prev = prevnode;
+    head = pool[head].next;
+    if(head == -1) [[unlikely]]
+        rear = -1;
 }

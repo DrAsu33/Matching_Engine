@@ -2,6 +2,25 @@
 #include <cassert>
 #include <iostream>
 
+// ==========================================
+// 【HFT 极客宏】彻底解决跨平台与编译器版本问题
+// ==========================================
+#if defined(_MSC_VER) && !defined(__clang__)
+    #include <xmmintrin.h>
+    #define PREFETCH_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
+#else
+    // 【修复1】这里必须是 __builtin_prefetch，绝对不能是 PREFETCH_T0 导致死循环
+    #define PREFETCH_T0(addr) __builtin_prefetch(addr, 0, 1)
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+    #define LIKELY(x) __builtin_expect(!!(x), 1)
+    #define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+    #define LIKELY(x) (x)
+    #define UNLIKELY(x) (x)
+#endif
+// ==========================================
 
 // get the callback function's ptr
 inline void MatchingEngine::register_callback(CallBackPtr fn_ptr)
@@ -19,11 +38,6 @@ MatchingEngine::MatchingEngine()
     for(size_t i = 0; i < POOL_SIZE - 1; i++)
         order_core_pool[i].next = (int32_t)(i + 1);
     pool_head = 0;
-    // Assign sentinels
-    for(auto& queue : asks.buckets)
-        queue.init(order_core_pool, alloc_node());
-    for(auto& queue : bids.buckets)
-        queue.init(order_core_pool, alloc_node());
 }
 
 // Allocating an unused node and returns the index. Note that the data is not synced
@@ -38,7 +52,6 @@ int32_t MatchingEngine::alloc_node()
 void MatchingEngine::free_node(int32_t index)
 {
     order_core_pool[index].next = pool_head;
-    order_core_pool[index].prev = -1;
     pool_head = index;
 }
 
@@ -49,20 +62,37 @@ Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price pr
     while(amount > 0)
     {
         // Calling the func get_best_queue assures the best_price is updated
-        auto best_price_list_ptr = asks.get_best_queue(order_core_pool);
+        auto best_price_list_ptr = asks.get_best_queue();
         // If the map is empty or the price is unsatisfying
         if(best_price_list_ptr == nullptr || asks.best_price > price) break;
 
-        // The inner loop that deals with the queue at the bestprice
-        while(amount > 0)
-        {
-            // The queue is eaten up
-            if(best_price_list_ptr->empty(order_core_pool)) break;
+        // Prefetching best_order's info
+        if (!best_price_list_ptr->empty())
+            PREFETCH_T0(&order_info_pool[best_price_list_ptr->begin()]);
 
-            auto best_ask_index = best_price_list_ptr->begin(order_core_pool);
+        // The inner loop that deals with the queue at the bestprice
+        while(amount > 0 && !best_price_list_ptr->empty())
+        {
+            int32_t best_ask_index = best_price_list_ptr->begin();
             OrderCore& best_order = order_core_pool[best_ask_index];
+
+            // This is where cancelled nodes are cleared up!
+            if(best_order.amount == 0) [[unlikely]]
+            {
+                best_price_list_ptr->pop_front(order_core_pool);
+                free_node(best_ask_index);
+                // Prefetch the next node's info
+                if (!best_price_list_ptr->empty())
+                    PREFETCH_T0(&order_info_pool[best_price_list_ptr->begin()]);
+                continue;             
+            }
             OrderInfo& best_order_info = order_info_pool[best_ask_index];
             Quantity trade_amount = std::min(amount, best_order.amount);
+
+            // Prefetching next best_order's info
+            auto next_ask_index = best_order.next;
+            if (next_ask_index != -1)
+                PREFETCH_T0(&order_info_pool[next_ask_index]); 
 
             // form a log and call the callback function(if registered)
             if(callback_fn_ptr)
@@ -75,11 +105,11 @@ Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price pr
             best_order.amount -= trade_amount;
 
             // if the best order was completed, it has to be deleted
-            if(best_order.amount == 0)
+            if(best_order.amount == 0) [[likely]]
             {
-                best_price_list_ptr->erase(order_core_pool, best_ask_index);
                 assert(best_order_info.id < MAX_ORDERS);
-                order_locations[best_order_info.id].pool_index = -1;
+                order_locations[best_order_info.id].setfinish();
+                best_price_list_ptr->pop_front(order_core_pool);
                 free_node(best_ask_index);
             }
         }
@@ -111,21 +141,38 @@ Quantity MatchingEngine::match_ask(OrderId taker_oid, UserId taker_uid, Price pr
     while(amount > 0)
     {
         // Calling the func get_best_queue assures the best_price is updated
-        auto best_price_list_ptr = bids.get_best_queue(order_core_pool);
+        auto best_price_list_ptr = bids.get_best_queue();
         // If the map is empty or the price is unsatisfying
-        // Note: For selling, we break if the Best Bid is LOWER than our Ask price
         if(best_price_list_ptr == nullptr || bids.best_price < price) break;
 
-        // The inner loop that deals with the queue at the bestprice
-        while(amount > 0)
-        {
-            // The queue is eaten up
-            if(best_price_list_ptr->empty(order_core_pool)) break;
+        // Prefetching best_order's info
+        if (!best_price_list_ptr->empty())
+            PREFETCH_T0(&order_info_pool[best_price_list_ptr->begin()]);
 
-            auto best_bid_index = best_price_list_ptr->begin(order_core_pool);
+        // The inner loop that deals with the queue at the bestprice
+        while(amount > 0 && !best_price_list_ptr->empty())
+        {
+            int32_t best_bid_index = best_price_list_ptr->begin();
             OrderCore& best_order = order_core_pool[best_bid_index];
+
+            // This is where cancelled nodes are cleared up!
+            if(best_order.amount == 0)
+            {
+                best_price_list_ptr->pop_front(order_core_pool);
+                free_node(best_bid_index);
+                // Prefetch the next node's info
+                if (!best_price_list_ptr->empty())
+                    PREFETCH_T0(&order_info_pool[best_price_list_ptr->begin()]);
+                continue;           
+            }
+
             OrderInfo& best_order_info = order_info_pool[best_bid_index];
             Quantity trade_amount = std::min(amount, best_order.amount);
+
+            // Prefetching
+            auto next_bid_index = best_order.next;
+            if (next_bid_index != -1)
+                PREFETCH_T0(&order_info_pool[next_bid_index]); 
 
             // form a log and call the callback function(if registered)
             if(callback_fn_ptr)
@@ -139,11 +186,11 @@ Quantity MatchingEngine::match_ask(OrderId taker_oid, UserId taker_uid, Price pr
             best_order.amount -= trade_amount;
 
             // if the best order was completed, it has to be deleted
-            if(best_order.amount == 0)
+            if(best_order.amount == 0) [[likely]]
             {
-                best_price_list_ptr->erase(order_core_pool, best_bid_index);
                 assert(best_order_info.id < MAX_ORDERS);
-                order_locations[best_order_info.id].pool_index = -1;
+                order_locations[best_order_info.id].setfinish();
+                best_price_list_ptr->pop_front(order_core_pool);
                 free_node(best_bid_index);
             }
         }
@@ -201,12 +248,9 @@ void MatchingEngine::cancel_order(OrderId id)
     if(location.finished())
         return;
     int32_t index = location.pool_index;
-    Price price = location.price;
-    if(location.side == Side::BID)
-        bids.buckets[price].erase(order_core_pool, index);
-    else // Side::ASK
-        asks.buckets[price].erase(order_core_pool, index);
-    free_node(index);
+    // Lazy deletion: it shall be freed in match_bid(ask) function
+    // Here it's only set to be 0 amount
+    order_core_pool[index].amount = 0;
     location.setfinish();
 }
 
@@ -254,5 +298,17 @@ extern "C"
     {
         if(self != nullptr)
             self->register_callback(fn_ptr);
+    }
+
+    void matching_engine_place_orders_batch(MatchingEngine* self, FFIOrder* orders, size_t count)
+    {
+        if (!self || !orders) [[unlikely]] 
+            return;
+
+        for(size_t i = 0; i < count; i++)
+        {
+            FFIOrder& order = orders[i];
+            self->place_limit_order(order.side, order.id, order.user_id, order.price, order.amount);
+        }
     }
 }

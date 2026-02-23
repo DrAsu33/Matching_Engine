@@ -32,10 +32,9 @@ enum class Side : uint8_t
 //
 // `prev` and `next` are indices forming an intrusive linked list
 // within the internal order pool.
-struct OrderCore
+struct alignas(16) OrderCore
 {
     Quantity amount = 0;
-    int32_t prev = -1;
     int32_t next = -1;
 };
 static_assert(sizeof(OrderCore) == 16, "OrderCore size must be strictly 16 bytes for Cache Line optimization!");
@@ -67,3 +66,18 @@ struct TradeLog
     Quantity amount;
     Side taker_side;
 };
+
+// ---------------------------------------------------------
+// FFI Data Transition Object
+// ALIGNED BY BYTES with the struct Order in models.rs
+// ---------------------------------------------------------
+struct FFIOrder
+{
+    uint64_t id;         // 8 bytes
+    uint64_t user_id;    // 8 bytes
+    Side side;           // 1 byte
+                         //  7 bytes Padding
+    uint64_t price;      // 8 bytes
+    uint64_t amount;     // 8 bytes
+};
+static_assert(sizeof(FFIOrder) == 40, "FFIOrder alignment mismatch with Rust!");
