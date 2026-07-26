@@ -1,9 +1,9 @@
-mod models;
-mod input;
+mod benchmark;
+mod bridge; // 新增
 mod engine_wrapper;
-mod bridge;     // 新增
-mod logger;     // 新增
-mod benchmark;  // 新增
+mod input;
+mod logger; // 新增
+mod models; // 新增
 
 use engine_wrapper::EngineWrapper;
 

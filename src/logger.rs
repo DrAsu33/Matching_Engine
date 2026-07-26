@@ -1,10 +1,10 @@
-use std::sync::mpsc;
-use std::thread::{self, JoinHandle};
-use std::fs::File;
-use std::io::{BufWriter, Write};
-use crate::models::TradeLog;
 use crate::bridge;
 use crate::engine_wrapper::EngineWrapper;
+use crate::models::TradeLog;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::sync::mpsc;
+use std::thread::{self, JoinHandle};
 
 // 点火：启动日志线程，返回一个线程句柄（如果开启了日志的话）
 pub fn start(engine: &mut EngineWrapper, enable: bool) -> Option<JoinHandle<()>> {
@@ -15,7 +15,7 @@ pub fn start(engine: &mut EngineWrapper, enable: bool) -> Option<JoinHandle<()>>
 
     // 1. 建立通信管道
     let (tx, rx) = mpsc::channel::<TradeLog>();
-    
+
     // 2. 告诉 C++ 往哪里发数据
     bridge::set_global_sender(tx);
     engine.regiser_fn_ptr(bridge::callback);
@@ -30,9 +30,12 @@ pub fn start(engine: &mut EngineWrapper, enable: bool) -> Option<JoinHandle<()>>
             let _ = writeln!(
                 writer,
                 "[Order: {:>6}] from User: {:>6} was taken by [Order: {:>6}] from User: {:>6}. Price: {:>6}, Amount: {:>6}",
-                trade.maker_order_id, trade.maker_user_id,
-                trade.taker_order_id, trade.taker_user_id,
-                trade.price, trade.amount
+                trade.maker_order_id,
+                trade.maker_user_id,
+                trade.taker_order_id,
+                trade.taker_user_id,
+                trade.price,
+                trade.amount
             );
         }
         writer.flush().unwrap();

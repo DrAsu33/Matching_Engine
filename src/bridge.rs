@@ -1,5 +1,5 @@
-use std::sync::mpsc::Sender;
 use crate::models::TradeLog;
+use std::sync::mpsc::Sender;
 
 // 全局静态变量藏在这里
 static mut GLOBAL_SENDER: Option<Sender<TradeLog>> = None;
