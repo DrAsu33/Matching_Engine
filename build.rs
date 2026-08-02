@@ -1,12 +1,11 @@
 fn main() {
     let mut build = cc::Build::new();
 
-    // 1. 设置源文件与全局宏定义
-    build
-        .cpp(true)
-        .file("src/engine.cpp")
-        // 【关键新增】定义 NDEBUG 宏，彻底抹杀 C++ 代码中 assert 的运行时开销
-        .define("NDEBUG", None);
+    // 1. 设置源文件；仅在 Release 中移除契约断言
+    build.cpp(true).file("src/engine.cpp");
+    if std::env::var("PROFILE").as_deref() == Ok("release") {
+        build.define("NDEBUG", None);
+    }
 
     // 2. 获取编译器信息
     let compiler = build.get_compiler();
@@ -57,4 +56,5 @@ fn main() {
     println!("cargo:rerun-if-changed=src/order.h");
     println!("cargo:rerun-if-changed=src/orderbook.h");
     println!("cargo:rerun-if-changed=src/orderqueue.h");
+    println!("cargo:rerun-if-env-changed=PROFILE");
 }

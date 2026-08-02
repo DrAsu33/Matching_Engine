@@ -66,13 +66,10 @@ pub fn load_orders_stream<R: BufRead>(reader: R) -> std::io::Result<Vec<Order>> 
             }
         };
 
-        orders.push(Order {
-            id: (index + 1) as u64,
-            user_id,
-            side,
-            price,
-            amount,
-        });
+        match Order::new((index + 1) as u64, user_id, side, price, amount) {
+            Ok(order) => orders.push(order),
+            Err(error) => eprintln!("Error[Line {}] : {}", index + 1, error),
+        }
     }
 
     Ok(orders)
@@ -105,19 +102,46 @@ mod tests {
         // Assert：检查结果
         assert_eq!(orders.len(), 2);
 
-        assert_eq!(orders[0].id, 1);
-        assert_eq!(orders[0].user_id, 1001);
-        assert_eq!(orders[0].side, Side::Bid);
-        assert_eq!(orders[0].price, 100);
-        assert_eq!(orders[0].amount, 25);
+        assert_eq!(orders[0].id(), 1);
+        assert_eq!(orders[0].user_id(), 1001);
+        assert_eq!(orders[0].side(), Side::Bid);
+        assert_eq!(orders[0].price(), 100);
+        assert_eq!(orders[0].amount(), 25);
 
-        assert_eq!(orders[1].id, 2);
-        assert_eq!(orders[1].side, Side::Ask);
+        assert_eq!(orders[1].id(), 2);
+        assert_eq!(orders[1].side(), Side::Ask);
     }
 
     #[test]
     fn skips_order_with_invalid_side() {
         let csv = "1001, X, 100, 25\n";
+
+        let orders = load_orders_stream(Cursor::new(csv)).unwrap();
+
+        assert!(orders.is_empty());
+    }
+
+    #[test]
+    fn skips_order_with_zero_amount() {
+        let csv = "1001, B, 100, 0\n";
+
+        let orders = load_orders_stream(Cursor::new(csv)).unwrap();
+
+        assert!(orders.is_empty());
+    }
+
+    #[test]
+    fn skips_order_with_zero_price() {
+        let csv = "1001, B, 0, 25\n";
+
+        let orders = load_orders_stream(Cursor::new(csv)).unwrap();
+
+        assert!(orders.is_empty());
+    }
+
+    #[test]
+    fn skips_order_at_max_price() {
+        let csv = "1001, B, 100000, 25\n";
 
         let orders = load_orders_stream(Cursor::new(csv)).unwrap();
 

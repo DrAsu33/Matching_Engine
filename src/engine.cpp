@@ -30,12 +30,22 @@ inline void MatchingEngine::register_callback(CallBackPtr fn_ptr)
 
 // The constructor. Pre-allocating the memory pool of orders
 MatchingEngine::MatchingEngine()
+    : MatchingEngine(POOL_SIZE, MAX_ORDERS)
 {
-    order_core_pool.resize(POOL_SIZE);
-    order_info_pool.resize(POOL_SIZE);
-    order_locations.resize(MAX_ORDERS);
+}
+
+MatchingEngine::MatchingEngine(size_t pool_size, OrderId max_orders)
+    : order_capacity(max_orders)
+{
+    assert(pool_size > 0);
+    assert(pool_size <= static_cast<size_t>(INT32_MAX));
+    assert(max_orders > 0 && max_orders <= MAX_ORDERS);
+
+    order_core_pool.resize(pool_size);
+    order_info_pool.resize(pool_size);
+    order_locations.resize(max_orders);
     // Pre-linking "nodes". Note that all "prev"s and the last "next" are set to -1 already
-    for(size_t i = 0; i < POOL_SIZE - 1; i++)
+    for(size_t i = 0; i + 1 < pool_size; i++)
         order_core_pool[i].next = (int32_t)(i + 1);
     pool_head = 0;
 }
@@ -107,7 +117,7 @@ Quantity MatchingEngine::match_bid(OrderId taker_oid, UserId taker_uid, Price pr
             // if the best order was completed, it has to be deleted
             if(best_order.amount == 0) [[likely]]
             {
-                assert(best_order_info.id < MAX_ORDERS);
+                assert(best_order_info.id < order_capacity);
                 order_locations[best_order_info.id].setfinish();
                 best_price_list_ptr->pop_front(order_core_pool);
                 free_node(best_ask_index);
@@ -130,7 +140,7 @@ inline void MatchingEngine::add_bid(OrderId oid, UserId uid, Price price, Quanti
     new_node_core.amount = amount;
 
     bids.add(order_core_pool, price, new_index);
-    assert(oid < MAX_ORDERS);
+    assert(oid < order_capacity);
     order_locations[oid] = OrderLocation{new_index, price, Side::BID}; // The compiler shall optimize it. No temporary variable will be constructed
 }
 
@@ -188,7 +198,7 @@ Quantity MatchingEngine::match_ask(OrderId taker_oid, UserId taker_uid, Price pr
             // if the best order was completed, it has to be deleted
             if(best_order.amount == 0) [[likely]]
             {
-                assert(best_order_info.id < MAX_ORDERS);
+                assert(best_order_info.id < order_capacity);
                 order_locations[best_order_info.id].setfinish();
                 best_price_list_ptr->pop_front(order_core_pool);
                 free_node(best_bid_index);
@@ -211,13 +221,19 @@ inline void MatchingEngine::add_ask(OrderId oid, UserId uid, Price price, Quanti
     new_node_core.amount = amount;
 
     asks.add(order_core_pool, price, new_index);
-    assert(oid < MAX_ORDERS);
+    assert(oid < order_capacity);
     order_locations[oid] = OrderLocation{new_index, price, Side::ASK}; // The compiler shall optimize it. No temporary variable will be constructed
 }
 
 // the main function placing an order
 void MatchingEngine::place_limit_order(Side side, OrderId oid, UserId uid, Price price, Quantity amount)
 {
+    // The Rust domain type guarantees these preconditions. Keep the assertions in
+    // non-Release builds so violations of the FFI contract fail close to the boundary.
+    assert(oid < order_capacity);
+    assert(price > 0 && price < MAX_PRICE);
+    assert(amount > 0);
+
     Quantity remaining;
     if(side == Side::ASK)
     {
@@ -241,7 +257,7 @@ void MatchingEngine::place_limit_order(Side side, OrderId oid, UserId uid, Price
 void MatchingEngine::cancel_order(OrderId id)
 {
     // If the ID parameter is wrong
-    if(id >= MAX_ORDERS)
+    if(id >= order_capacity)
         return;
 
     OrderLocation& location = order_locations[id];
@@ -261,6 +277,13 @@ extern "C"
     {
         return new MatchingEngine();
     }
+
+#ifndef NDEBUG
+    MatchingEngine* matching_engine_new_for_test(size_t pool_size, uint64_t max_orders)
+    {
+        return new MatchingEngine(pool_size, max_orders);
+    }
+#endif
 
     void matching_engine_free(MatchingEngine* self)
     {

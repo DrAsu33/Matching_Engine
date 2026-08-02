@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 // type of func ptr which receives TradeLog
-using CallBackPtr = void* (*)(const TradeLog);
+using CallBackPtr = void (*)(TradeLog);
 
 
 // the core data structure of the engine
@@ -48,6 +48,7 @@ private:
     // the ordernode pool (pre-allocated)
     std::vector<OrderCore> order_core_pool;
     std::vector<OrderInfo> order_info_pool;
+    OrderId order_capacity;
     int32_t pool_head = -1;  // shall be initialized as 0 in constructor function
     int32_t alloc_node();
     void free_node(int32_t index);
@@ -63,6 +64,7 @@ private:
 public:
     // Pre-allocating might help reduce runtime latency. Optimaizations needed later
     MatchingEngine();
+    MatchingEngine(size_t pool_size, OrderId max_orders);
     inline void register_callback(CallBackPtr fn_ptr);
     void place_limit_order(Side side, OrderId id, UserId uid, Price price, Quantity amount);
     void cancel_order(OrderId id);
