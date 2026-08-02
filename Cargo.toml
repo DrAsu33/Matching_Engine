@@ -3,6 +3,10 @@ name = "Matching_Engine"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "matching_engine"
+path = "src/lib.rs"
+
 [dependencies]
 libc = "0.2"
 

@@ -2,7 +2,11 @@ fn main() {
     let mut build = cc::Build::new();
 
     // 1. 设置源文件；仅在 Release 中移除契约断言
-    build.cpp(true).file("src/engine.cpp");
+    build
+        .cpp(true)
+        .include("cpp/include")
+        .file("cpp/src/matching_engine.cpp")
+        .file("cpp/src/c_api.cpp");
     if std::env::var("PROFILE").as_deref() == Ok("release") {
         build.define("NDEBUG", None);
     }
@@ -51,10 +55,12 @@ fn main() {
     build.compile("matching_engine_cpp");
 
     // 5. 监控文件变化
-    println!("cargo:rerun-if-changed=src/engine.cpp");
-    println!("cargo:rerun-if-changed=src/engine.h");
-    println!("cargo:rerun-if-changed=src/order.h");
-    println!("cargo:rerun-if-changed=src/orderbook.h");
-    println!("cargo:rerun-if-changed=src/orderqueue.h");
+    println!("cargo:rerun-if-changed=cpp/src/matching_engine.cpp");
+    println!("cargo:rerun-if-changed=cpp/src/c_api.cpp");
+    println!("cargo:rerun-if-changed=cpp/include/matching_engine/c_api.hpp");
+    println!("cargo:rerun-if-changed=cpp/include/matching_engine/matching_engine.hpp");
+    println!("cargo:rerun-if-changed=cpp/include/matching_engine/types.hpp");
+    println!("cargo:rerun-if-changed=cpp/include/matching_engine/order_book.hpp");
+    println!("cargo:rerun-if-changed=cpp/include/matching_engine/order_queue.hpp");
     println!("cargo:rerun-if-env-changed=PROFILE");
 }

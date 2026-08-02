@@ -1,4 +1,4 @@
-use crate::models::TradeLog;
+use crate::domain::TradeLog;
 use std::sync::mpsc::Sender;
 
 // 全局静态变量藏在这里

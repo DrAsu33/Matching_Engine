@@ -1,10 +1,10 @@
 #pragma once
-#include "order.h"
-#include "orderqueue.h"
-#include "orderbook.h"
+#include "matching_engine/order_book.hpp"
+#include "matching_engine/order_queue.hpp"
+#include "matching_engine/types.hpp"
 
-#include <algorithm>
-#include <unordered_map>
+#include <cstddef>
+#include <vector>
 
 // type of func ptr which receives TradeLog
 using CallBackPtr = void (*)(TradeLog);
@@ -33,7 +33,7 @@ public:
         int32_t pool_index = -1;
         Price price = 0;
         Side side = Side::BID;
-        inline bool finished() const{ return pool_index == -1; }
+        inline bool finished() const { return pool_index == -1; }
         inline void setfinish() { pool_index = -1; }
     };
 
@@ -64,8 +64,8 @@ private:
 public:
     // Pre-allocating might help reduce runtime latency. Optimaizations needed later
     MatchingEngine();
-    MatchingEngine(size_t pool_size, OrderId max_orders);
-    inline void register_callback(CallBackPtr fn_ptr);
+    MatchingEngine(std::size_t pool_size, OrderId max_orders);
+    void register_callback(CallBackPtr fn_ptr);
     void place_limit_order(Side side, OrderId id, UserId uid, Price price, Quantity amount);
     void cancel_order(OrderId id);
 };

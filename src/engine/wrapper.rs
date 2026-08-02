@@ -1,35 +1,23 @@
-use crate::models::{Order, Side, TradeLog};
+#[cfg(test)]
+use super::ffi::matching_engine_new_for_test;
+use super::ffi::{
+    CallBackPtr, matching_engine_cancel_order, matching_engine_free, matching_engine_new,
+    matching_engine_place_order, matching_engine_place_orders_batch,
+    matching_engine_register_fn_ptr,
+};
+#[cfg(test)]
+use crate::domain::TradeLog;
+use crate::domain::{Order, Side};
 use std::ffi::c_void;
-
-pub type CallBackPtr = extern "C" fn(tradelog: TradeLog);
-
-unsafe extern "C" {
-    fn matching_engine_new() -> *mut c_void;
-    #[cfg(test)]
-    fn matching_engine_new_for_test(pool_size: usize, max_orders: u64) -> *mut c_void;
-    fn matching_engine_free(ptr: *mut c_void);
-    #[allow(dead_code)]
-    fn matching_engine_place_order(
-        ptr: *mut c_void,
-        side: u8,
-        oid: u64,
-        uid: u64,
-        price: u64,
-        amount: u64,
-    );
-    #[allow(dead_code)]
-    fn matching_engine_cancel_order(ptr: *mut c_void, id: u64);
-    fn matching_engine_register_fn_ptr(ptr: *mut c_void, fn_ptr: CallBackPtr);
-
-    fn matching_engine_place_orders_batch(
-        ptr: *mut c_void,
-        orders: *const crate::models::Order,
-        count: usize,
-    );
-}
 
 pub struct EngineWrapper {
     ptr: *mut c_void,
+}
+
+impl Default for EngineWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EngineWrapper {
@@ -79,7 +67,7 @@ impl EngineWrapper {
         }
     }
 
-    pub fn place_orders_batch(&mut self, orders: &[crate::models::Order]) {
+    pub fn place_orders_batch(&mut self, orders: &[Order]) {
         unsafe {
             matching_engine_place_orders_batch(self.ptr, orders.as_ptr(), orders.len());
         }

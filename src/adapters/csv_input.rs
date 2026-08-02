@@ -1,6 +1,6 @@
 // input
 
-use crate::models::{Order, Side};
+use crate::domain::{Order, Side};
 use std::fs::File;
 use std::io::{self, BufRead};
 

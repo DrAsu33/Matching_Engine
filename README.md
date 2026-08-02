@@ -19,16 +19,18 @@
 
 ## 系统架构
 
-1. **撮合内核 (`src/engine.cpp`)**：维护买卖盘（OrderBook），实现限价单撮合与订单撤单逻辑。
-2. **数据模型 (`src/models.rs`, `src/order.h`)**：定义了订单（Order）、侧向（Side）和成交日志（TradeLog）等跨语言对齐的基础结构。
-3. **Rust 封装层 (`src/engine_wrapper.rs`)**：提供安全的 Rust 接口，负责与 C++ 底层进行通信和对象生命周期管理。
-4. **日志系统 (`src/logger.rs`, `src/bridge.rs`)**：通过 FFI 回调机制，将 C++ 产生的成交信息实时回传给 Rust 异步线程进行持久化。
+1. **领域模型 (`src/domain`)**：定义订单、方向、成交和校验错误，不依赖 FFI、文件或线程。
+2. **Rust 引擎接口 (`src/engine`)**：将 `unsafe` FFI、回调桥接和安全的引擎生命周期封装集中在语言边界。
+3. **输入输出适配器 (`src/adapters`)**：负责 CSV 输入与异步成交日志，不进入撮合核心。
+4. **应用层 (`src/application`)**：组织 benchmark 等用例，由 `src/main.rs` 完成依赖装配。
+5. **C++ 撮合核心 (`cpp/include`, `cpp/src/matching_engine.cpp`)**：维护订单簿、订单队列与内存池。
+6. **C ABI 适配层 (`cpp/src/c_api.cpp`)**：隔离 Rust/C++ 数据转换和导出函数，避免 C++ 核心依赖 Rust。
 
 ## 性能表现
 
 项目包含内置的 Benchmark 工具，可直接对引擎进行压力测试。
 
-* **测试入口**：`src/benchmark.rs`
+* **测试入口**：`src/application/benchmark.rs`
 * **指标**：支持统计总订单数、运行总时长、TPS（每秒成交数）以及单笔订单处理延迟（纳秒级）。
 
 ## 快速开始
@@ -109,4 +111,3 @@ cargo run --release
 
 * **Best Price 缓存**：`OrderBook` 维护了一个 `best_price` 变量。
 * **线性扫描延迟更新**：当当前最优价的订单被吃完时，引擎会进行线性扫描以寻找下一个最优价。由于交易通常集中在盘口附近（高斯分布），这种扫描在实际场景中非常高效。
-

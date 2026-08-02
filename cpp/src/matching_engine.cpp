@@ -1,6 +1,7 @@
-#include "engine.h"
+#include "matching_engine/matching_engine.hpp"
+
+#include <algorithm>
 #include <cassert>
-#include <iostream>
 
 // ==========================================
 // 【HFT 极客宏】彻底解决跨平台与编译器版本问题
@@ -23,7 +24,7 @@
 // ==========================================
 
 // get the callback function's ptr
-inline void MatchingEngine::register_callback(CallBackPtr fn_ptr)
+void MatchingEngine::register_callback(CallBackPtr fn_ptr)
 {
     callback_fn_ptr = fn_ptr;
 }
@@ -34,18 +35,18 @@ MatchingEngine::MatchingEngine()
 {
 }
 
-MatchingEngine::MatchingEngine(size_t pool_size, OrderId max_orders)
+MatchingEngine::MatchingEngine(std::size_t pool_size, OrderId max_orders)
     : order_capacity(max_orders)
 {
     assert(pool_size > 0);
-    assert(pool_size <= static_cast<size_t>(INT32_MAX));
+    assert(pool_size <= static_cast<std::size_t>(INT32_MAX));
     assert(max_orders > 0 && max_orders <= MAX_ORDERS);
 
     order_core_pool.resize(pool_size);
     order_info_pool.resize(pool_size);
     order_locations.resize(max_orders);
     // Pre-linking "nodes". Note that all "prev"s and the last "next" are set to -1 already
-    for(size_t i = 0; i + 1 < pool_size; i++)
+    for(std::size_t i = 0; i + 1 < pool_size; i++)
         order_core_pool[i].next = (int32_t)(i + 1);
     pool_head = 0;
 }
@@ -268,70 +269,4 @@ void MatchingEngine::cancel_order(OrderId id)
     // Here it's only set to be 0 amount
     order_core_pool[index].amount = 0;
     location.setfinish();
-}
-
-// The functions needed
-extern "C"
-{
-    MatchingEngine* matching_engine_new()
-    {
-        return new MatchingEngine();
-    }
-
-#ifndef NDEBUG
-    MatchingEngine* matching_engine_new_for_test(size_t pool_size, uint64_t max_orders)
-    {
-        return new MatchingEngine(pool_size, max_orders);
-    }
-#endif
-
-    void matching_engine_free(MatchingEngine* self)
-    {
-        delete self;
-    }
-
-    void matching_engine_place_order(MatchingEngine* self, uint8_t side_raw, uint64_t oid, uint64_t uid, uint64_t price, uint64_t amount)
-    {
-        if (!self)
-        {
-            std::cerr << "MatchingEngine pointer is null\n";
-            return;
-        }
-
-        Side side;
-        if(side_raw == 0)
-            side = Side::BID;
-        else if(side_raw == 1)
-            side = Side::ASK;
-        else // wrong parameter
-        {
-            std::cerr << "side conversion failed!" << std::endl;
-            return; // wrong parameter
-        }
-        self->place_limit_order(side, oid, uid, price, amount);
-    }
-
-    void matching_engine_cancel_order(MatchingEngine* self, uint64_t id)
-    {
-        if(self != nullptr)
-            self->cancel_order(id);
-    }
-
-    void matching_engine_register_fn_ptr(MatchingEngine* self, CallBackPtr fn_ptr)
-    {
-        if(self != nullptr)
-            self->register_callback(fn_ptr);
-    }
-
-    void matching_engine_place_orders_batch(MatchingEngine* self, FFIOrder* orders, size_t count)
-    {
-        if (!self || !orders) [[unlikely]] 
-            return;
-
-        for(size_t i = 0; i < count; i++)
-        {
-            FFIOrder& order = orders[i];
-            self->place_limit_order(order.side, order.id, order.user_id, order.price, order.amount);
-        }
-    }
 }

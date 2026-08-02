@@ -1,6 +1,6 @@
-use crate::engine_wrapper::EngineWrapper;
-use crate::input;
-use crate::models::Order;
+use crate::adapters::csv_input;
+use crate::domain::Order;
+use crate::engine::EngineWrapper;
 use std::time::Instant;
 
 pub struct BenchResult {
@@ -12,7 +12,7 @@ pub struct BenchResult {
 
 pub fn load_data(filename: &str) -> std::io::Result<Vec<Order>> {
     println!("Loading orders from {}...", filename);
-    let orders = input::load_orders_file(filename)?;
+    let orders = csv_input::load_orders_file(filename)?;
     println!("Loaded {} orders.", orders.len());
     Ok(orders)
 }

@@ -1,6 +1,6 @@
 #pragma once
-#include "order.h"
-#include "orderqueue.h"
+#include "matching_engine/order_queue.hpp"
+#include "matching_engine/types.hpp"
 #include <vector>
 
 // A cache-friendly OrderBook. Use OrderBook<Side::BID, MAX_PRICE> for bidsmap

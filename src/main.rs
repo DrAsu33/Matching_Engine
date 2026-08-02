@@ -1,11 +1,6 @@
-mod benchmark;
-mod bridge; // 新增
-mod engine_wrapper;
-mod input;
-mod logger; // 新增
-mod models; // 新增
-
-use engine_wrapper::EngineWrapper;
+use matching_engine::adapters::trade_logger;
+use matching_engine::application::benchmark;
+use matching_engine::engine::EngineWrapper;
 
 // === 配置开关 ===
 const ENABLE_LOGGING: bool = true; // 修改这里来开启/关闭日志
@@ -20,7 +15,7 @@ fn main() -> std::io::Result<()> {
     let mut engine = EngineWrapper::new();
 
     // 3. 启动日志系统 (把开关传进去，内部决定要不要真的启动)
-    let logger_handle = logger::start(&mut engine, ENABLE_LOGGING);
+    let logger_handle = trade_logger::start(&mut engine, ENABLE_LOGGING);
 
     // 4. 运行跑分
     let result = benchmark::run(&mut engine, &orders);
@@ -30,7 +25,7 @@ fn main() -> std::io::Result<()> {
     println!("Engine Done!");
 
     // 6. 关闭日志系统并清理
-    logger::stop(logger_handle);
+    trade_logger::stop(logger_handle);
 
     Ok(())
 }

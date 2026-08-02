@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include <vector>
 
 using Price = uint64_t;
 using OrderId = uint64_t;
@@ -66,18 +65,3 @@ struct TradeLog
     Quantity amount;
     Side taker_side;
 };
-
-// ---------------------------------------------------------
-// FFI Data Transition Object
-// ALIGNED BY BYTES with the struct Order in models.rs
-// ---------------------------------------------------------
-struct FFIOrder
-{
-    uint64_t id;         // 8 bytes
-    uint64_t user_id;    // 8 bytes
-    Side side;           // 1 byte
-                         //  7 bytes Padding
-    uint64_t price;      // 8 bytes
-    uint64_t amount;     // 8 bytes
-};
-static_assert(sizeof(FFIOrder) == 40, "FFIOrder alignment mismatch with Rust!");

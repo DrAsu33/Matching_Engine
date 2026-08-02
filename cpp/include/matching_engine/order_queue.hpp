@@ -1,5 +1,7 @@
 #pragma once
-#include "order.h"
+#include "matching_engine/types.hpp"
+
+#include <vector>
 
 struct OrderQueue
 {
