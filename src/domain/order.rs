@@ -1,11 +1,11 @@
-// Models
-
 use std::fmt;
 
+/// Maximum order identifier accepted by the current direct-index engine implementation.
 pub const MAX_ORDER_ID_EXCLUSIVE: u64 = 12_000_000;
+/// Exclusive upper bound of the engine's integer price domain.
 pub const MAX_PRICE_EXCLUSIVE: u64 = 100_000;
 
-// 1Byte, 0 for BID side and 1 for ASK side
+/// Order side with a stable one-byte representation across the Rust/C++ FFI boundary.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Side {
@@ -13,6 +13,9 @@ pub enum Side {
     Ask = 1,
 }
 
+/// Validated order DTO shared with the C++ engine through its C ABI.
+///
+/// Private fields ensure safe Rust callers construct orders through [`Order::new`].
 #[repr(C)]
 #[derive(Debug)]
 pub struct Order {
@@ -23,6 +26,7 @@ pub struct Order {
     amount: u64,
 }
 
+/// Validation failure returned while constructing an [`Order`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OrderValidationError {
     OrderIdOutOfRange,

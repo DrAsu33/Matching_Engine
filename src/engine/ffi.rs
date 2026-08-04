@@ -3,6 +3,8 @@ use std::ffi::c_void;
 
 pub type CallBackPtr = extern "C" fn(tradelog: TradeLog);
 
+// SAFETY: every declaration must remain ABI-compatible with
+// cpp/include/matching_engine/c_api.hpp.
 unsafe extern "C" {
     pub(super) fn matching_engine_new() -> *mut c_void;
     #[cfg(test)]

@@ -14,6 +14,6 @@ libc = "0.2"
 cc = "1.0"
 
 [profile.release]
-lto = "fat"           # 开启链接时全局优化
-codegen-units = 1     # 牺牲编译速度换取运行速度
-panic = "abort"       # 发生错误直接退出，不展开栈
+lto = "fat"       # Enable whole-program link-time optimization.
+codegen-units = 1 # Maximize optimization opportunities across Rust code.
+panic = "abort"   # Avoid stack-unwinding machinery in release builds.

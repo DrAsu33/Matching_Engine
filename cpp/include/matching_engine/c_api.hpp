@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// C-ABI data transfer object. Its layout matches Rust's repr(C) Order.
+// C ABI transfer object; field order and size must match Rust's repr(C) Order.
 struct FFIOrder
 {
     std::uint64_t id;

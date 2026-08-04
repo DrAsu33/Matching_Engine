@@ -1,5 +1,6 @@
 use super::Side;
 
+/// Completed trade event emitted by the matching engine.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct TradeLog {

@@ -6,11 +6,10 @@
 #include <cstddef>
 #include <vector>
 
-// type of func ptr which receives TradeLog
+// Synchronous trade-event callback invoked on the matching thread.
 using CallBackPtr = void (*)(TradeLog);
 
-
-// the core data structure of the engine
+// Single-threaded, in-memory limit-order matching engine.
 class MatchingEngine
 {
 public:
@@ -18,18 +17,15 @@ public:
     constexpr static OrderId MAX_ORDERS = 12000000;
     constexpr static Price MAX_PRICE = 100000;
     using OrderList = OrderQueue;
-    // the orderbook of the asks (ascending order)
+    // Asks are matched from the lowest price upward.
     using AsksMap = OrderBook<Side::ASK, MAX_PRICE>;
-    // the orderbook of the bids (descending order)
+    // Bids are matched from the highest price downward.
     using BidsMap = OrderBook<Side::BID, MAX_PRICE>;
 
-    // the location of order
+    // Direct-index entry for an active resting order.
     struct OrderLocation
     {
-        // The pool_index indicated the order's physical address in the orderpool
-        // initialized as -1 to show that the order was finished or cancelled
-        // (do not exist in the order pool)
-        // side is BID by default which actually means nothing
+        // A negative pool index denotes an inactive or previously unused entry.
         int32_t pool_index = -1;
         Price price = 0;
         Side side = Side::BID;
@@ -38,22 +34,20 @@ public:
     };
 
 private:
-    // The 2 orderbooks we need
     AsksMap asks;
     BidsMap bids;
 
-    // the ptr of the callback function
     CallBackPtr callback_fn_ptr = nullptr;
 
-    // the ordernode pool (pre-allocated)
+    // Hot and cold node storage share indices and are allocated once at startup.
     std::vector<OrderCore> order_core_pool;
     std::vector<OrderInfo> order_info_pool;
     OrderId order_capacity;
-    int32_t pool_head = -1;  // shall be initialized as 0 in constructor function
+    int32_t pool_head = -1;
     int32_t alloc_node();
     void free_node(int32_t index);
 
-    // Find the information of an order according to its OrderID
+    // Maps dense order identifiers directly to active pool locations.
     std::vector<OrderLocation> order_locations;
 
     Quantity match_bid(OrderId taker_oid, UserId taker_uid, Price price, Quantity amount);
@@ -62,7 +56,7 @@ private:
     inline void add_ask(OrderId oid, UserId uid, Price price, Quantity amount);
 
 public:
-    // Pre-allocating might help reduce runtime latency. Optimaizations needed later
+    // The default constructor allocates the production capacities at startup.
     MatchingEngine();
     MatchingEngine(std::size_t pool_size, OrderId max_orders);
     void register_callback(CallBackPtr fn_ptr);

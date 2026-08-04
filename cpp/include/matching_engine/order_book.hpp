@@ -3,9 +3,8 @@
 #include "matching_engine/types.hpp"
 #include <vector>
 
-// A cache-friendly OrderBook. Use OrderBook<Side::BID, MAX_PRICE> for bidsmap
-// and OrderBook<Side::ASK, MAX_PRICE> for bidsmap. 
-// Note that 0 and the MAX_PRICE are not valid numbers.
+// Dense price-level index with a side-specific best-price sentinel. Valid prices
+// are in the half-open interval [1, max_price).
 template<Side side, Price max_price>
 struct OrderBook
 {
@@ -18,7 +17,6 @@ struct OrderBook
     OrderQueue* get_best_queue();
 };
 
-// The sentinels shall be constructed in the constructor of the MatchingEngine
 template<Side side, Price max_price>
 OrderBook<side, max_price>::OrderBook()
 {
@@ -26,7 +24,7 @@ OrderBook<side, max_price>::OrderBook()
     reset();
 }
 
-// Reset the whole book
+// Resets the cached sentinel. Call only when all price-level queues are empty.
 template<Side side, Price max_price>
 inline void OrderBook<side, max_price>::reset()
 {
@@ -36,7 +34,6 @@ inline void OrderBook<side, max_price>::reset()
         best_price = max_price;
 }
 
-// Check whether the orderbook is empty
 template<Side side, Price max_price>
 inline bool OrderBook<side, max_price>::empty() const
 {
@@ -46,7 +43,7 @@ inline bool OrderBook<side, max_price>::empty() const
         return best_price == max_price;
 }
 
-// Add a new ordernode.
+// Appends a node at its price level and updates the cached best price.
 template<Side side, Price max_price>
 void OrderBook<side, max_price>::add(std::vector<OrderCore>& pool, uint64_t price, int32_t node_idx)
 {
@@ -63,17 +60,17 @@ void OrderBook<side, max_price>::add(std::vector<OrderCore>& pool, uint64_t pric
     }
 }
 
-// Get the best queue ptr
+// Returns the best non-empty price level, refreshing the cached price if necessary.
 template<Side side, Price max_price>
 OrderQueue* OrderBook<side, max_price>::get_best_queue() 
 {
     if (empty()) [[unlikely]] 
         return nullptr;
-    // The hot path
+    // The cached level remains valid for the common case.
     if (!buckets[best_price].empty()) {
         return &buckets[best_price];
     }
-    // Cold path. linear scanning can find out the next best_price
+    // A depleted level triggers a directional scan for the next populated price.
     if constexpr (side == Side::BID) 
     {
         while (best_price > 0)
@@ -92,5 +89,5 @@ OrderQueue* OrderBook<side, max_price>::get_best_queue()
             if (!buckets[best_price].empty()) return &buckets[best_price];
         }
     }
-    return nullptr; // the map is empty.
+    return nullptr;
 }

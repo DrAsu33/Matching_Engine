@@ -2,30 +2,39 @@ use matching_engine::adapters::trade_logger;
 use matching_engine::application::benchmark;
 use matching_engine::engine::EngineWrapper;
 
-// === 配置开关 ===
-const ENABLE_LOGGING: bool = true; // 修改这里来开启/关闭日志
+// Default runtime configuration.
+const ENABLE_LOGGING: bool = false;
 const DATA_FILE: &str = "test.csv";
+const LATENCY_WARMUP_ORDERS: usize = 100_000;
+const LATENCY_SAMPLE_EVERY: usize = 100;
 
-fn main() -> std::io::Result<()> {
-    // 1. 准备数据
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let orders = benchmark::load_data(DATA_FILE)?;
 
-    // 2. 初始化引擎
-    println!("Engine launching...");
-    let mut engine = EngineWrapper::new();
+    let throughput_result = {
+        println!("Launching throughput engine...");
+        let mut engine = EngineWrapper::new();
+        let logger_handle = trade_logger::start(&mut engine, ENABLE_LOGGING);
 
-    // 3. 启动日志系统 (把开关传进去，内部决定要不要真的启动)
-    let logger_handle = trade_logger::start(&mut engine, ENABLE_LOGGING);
+        let result = benchmark::run_throughput(&mut engine, &orders)?;
+        trade_logger::stop(logger_handle);
+        result
+    };
+    benchmark::print_throughput_report(&throughput_result, ENABLE_LOGGING);
 
-    // 4. 运行跑分
-    let result = benchmark::run(&mut engine, &orders);
+    let latency_result = {
+        println!("Launching latency engine...");
+        let mut engine = EngineWrapper::new();
+        let config = benchmark::LatencyConfig {
+            warmup_orders: LATENCY_WARMUP_ORDERS,
+            sample_every: LATENCY_SAMPLE_EVERY,
+        };
 
-    // 5. 打印结果
-    benchmark::print_report(&result);
-    println!("Engine Done!");
+        benchmark::run_latency(&mut engine, &orders, config)?
+    };
+    benchmark::print_latency_report(&latency_result);
 
-    // 6. 关闭日志系统并清理
-    trade_logger::stop(logger_handle);
+    println!("Benchmark complete.");
 
     Ok(())
 }

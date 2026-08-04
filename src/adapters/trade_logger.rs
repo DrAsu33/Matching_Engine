@@ -5,21 +5,18 @@ use std::io::{BufWriter, Write};
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 
-// 点火：启动日志线程，返回一个线程句柄（如果开启了日志的话）
+/// Starts the asynchronous trade logger when logging is enabled.
 pub fn start(engine: &mut EngineWrapper, enable: bool) -> Option<JoinHandle<()>> {
     if !enable {
         println!("[Config] Logging is DISABLED. Running in pure benchmark mode.");
         return None;
     }
 
-    // 1. 建立通信管道
     let (tx, rx) = mpsc::channel::<TradeLog>();
 
-    // 2. 告诉 C++ 往哪里发数据
     callback::set_global_sender(tx);
     engine.regiser_fn_ptr(callback::callback);
 
-    // 3. 启动后台工人
     let handle = thread::spawn(move || {
         println!("[LogThread] 日志线程已启动...");
         let file = File::create("trades.log").unwrap();
@@ -44,12 +41,12 @@ pub fn start(engine: &mut EngineWrapper, enable: bool) -> Option<JoinHandle<()>>
     Some(handle)
 }
 
-// 熄火：清理战场，确保数据写完
+/// Stops the logger after draining all queued trade events.
 pub fn stop(logger_handle: Option<JoinHandle<()>>) {
     if let Some(handle) = logger_handle {
-        // 剪断数据源，让上面的 for 循环自然结束
+        // Dropping the final sender disconnects the channel; the receiver drains queued
+        // events before exiting.
         callback::teardown_global_sender();
-        // 乖乖等后台工人把活干完再下班
         handle.join().unwrap();
     }
 }

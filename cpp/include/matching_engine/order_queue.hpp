@@ -5,7 +5,7 @@
 
 struct OrderQueue
 {
-    // The indices of the "list"
+    // Indices into the OrderCore pool; -1 denotes an empty queue.
     int32_t head = -1;
     int32_t rear = -1;
 
@@ -15,31 +15,28 @@ struct OrderQueue
     inline int32_t begin() const;
 };
 
-// Check whether the queue is empty.
 inline bool OrderQueue::empty() const 
 {
     return head == -1;
 }
 
-// Get the first index of the list
 inline int32_t OrderQueue::begin() const
 {
     return head;
 }
 
-// Remember to initialize node[new_index] after this func
+// Appends a node while preserving FIFO order within the price level.
 inline void OrderQueue::push_back(std::vector<OrderCore>& pool, int32_t new_index)
 {
     pool[new_index].next = -1;
-    if(rear != -1) [[likely]] // not empty
+    if(rear != -1) [[likely]]
         pool[rear].next = new_index;
     else
         head = new_index;
     rear = new_index;
 }
 
-// Pop the first node. The node should be freed manually
-// First make sure not empty!!
+// Removes the head. Precondition: the queue is non-empty. The caller owns reclamation.
 inline void OrderQueue::pop_front(std::vector<OrderCore>& pool)
 {
     head = pool[head].next;

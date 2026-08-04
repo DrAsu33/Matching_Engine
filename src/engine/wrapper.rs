@@ -30,7 +30,7 @@ impl EngineWrapper {
     }
 
     #[cfg(test)]
-    fn new_for_test(pool_size: usize, max_orders: u64) -> Self {
+    pub(crate) fn new_for_test(pool_size: usize, max_orders: u64) -> Self {
         unsafe {
             EngineWrapper {
                 ptr: matching_engine_new_for_test(pool_size, max_orders),
